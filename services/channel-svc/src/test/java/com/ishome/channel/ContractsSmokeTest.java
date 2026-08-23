@@ -11,7 +11,7 @@ import com.ishome.design.v1.DesignServiceGrpc;
 import org.junit.jupiter.api.Test;
 
 /**
- * contracts SDK（shared/contracts ← ishome-contracts@v0.1.1）classpath 冒烟：
+ * contracts SDK（shared/contracts ← ishome-contracts@v0.1.2）classpath 冒烟：
  * 三域生成类型可引用、可构建即通过（编译期已验证大半，断言防空壳）。
  */
 class ContractsSmokeTest {

@@ -1,5 +1,5 @@
 // contracts 生成代码纳入模块：唯一真源在 ishome-contracts 仓（buf generate 产物），本模块零手写代码。
-// 源目录经 -PcontractsRepoPath 覆盖（默认同级检出 ../ishome-contracts）；CI 检出 v0.1.1 tag 后传入。
+// 源目录经 -PcontractsRepoPath 覆盖（默认同级检出 ../ishome-contracts）；CI 检出 v0.1.2 tag 后传入。
 // 不套 ishome.java-conventions —— Checkstyle/PMD/Spotless 约束手写代码，不约束 buf 产物。
 plugins {
     `java-library`
