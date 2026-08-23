@@ -55,3 +55,7 @@ TODO：`ishome-contracts` 首个 tag 后，经 GitHub Packages Maven 引入 `com
 - schema-per-service，禁止跨 schema 外键与 join；主键 ULID、UTC、软删、枚举存字符串、金额 int 分。
 - 新增服务用脚手架，不手搭——分层靠模板生成，不靠人记。
 - Conventional Commits，scope=服务名（如 `feat(estate): ...`）。
+
+## 本地质量门（pre-push）
+
+云端 CI 停用期间的本地把关：push 前自动跑本仓全套检查。新 clone 后执行一次 `git config core.hooksPath .githooks` 启用；紧急绕过用 `git push --no-verify`。

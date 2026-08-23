@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# 本地 pre-push 质量门（云端 CI 因账号计费停用期间的替代把关）。
+# 新 clone 后需执行一次：git config core.hooksPath .githooks
+# 紧急绕过：git push --no-verify（仅限确认过风险时使用）。
+set -euo pipefail
+cd "$(dirname "$0")/.."
+# 本机 shell 的 JAVA_HOME 全局指向 1.8，gradlew 需要 17+：强制用 brew JDK21
+if [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
+  export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+fi
+echo "== pre-push: gradlew build (compile + checkstyle + pmd + spotless + archunit tests)"
+./gradlew build
+echo "== pre-push: channel literal whitelist"
+./scripts/check-channel-literals.sh
+echo "== pre-push: OK"
