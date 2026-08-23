@@ -5,8 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# 本机 JDK 兜底（gradlew 启动需要现代 JVM；toolchain 负责编译用 21）
-if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
+# 本机 JDK：gradlew 启动需要 JVM 17+，而本机 shell 配置把 JAVA_HOME 全局指向 1.8——
+# 因此只要 brew 的 JDK 21 存在就强制使用（ISHOME_JAVA_HOME 可覆盖）。
+if [ -n "${ISHOME_JAVA_HOME:-}" ]; then
+  export JAVA_HOME="$ISHOME_JAVA_HOME"
+elif [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
   export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 fi
 
@@ -18,7 +21,7 @@ CHANNEL_LOG="$LOG_DIR/channel-svc.log"
 EXPECT_PREFIX='[design-svc] 收到你的消息：'
 
 cleanup() {
-  echo "== cleanup（日志留存 $LOG_DIR）"
+  echo "== cleanup（日志留存 ${LOG_DIR}）"
   [ -n "${CHANNEL_PID:-}" ] && { pkill -P "$CHANNEL_PID" 2>/dev/null || true; kill "$CHANNEL_PID" 2>/dev/null || true; }
   [ -n "${DESIGN_PID:-}" ] && { pkill -P "$DESIGN_PID" 2>/dev/null || true; kill "$DESIGN_PID" 2>/dev/null || true; }
   # bootRun/uv 的孙进程兜底
@@ -38,12 +41,12 @@ wait_for() { # wait_for <描述> <超时秒> <命令...>
   return 1
 }
 
-echo "== 启动 design-svc（gRPC :$DESIGN_PORT）"
+echo "== 启动 design-svc（gRPC :${DESIGN_PORT}）"
 (cd ../ishome-aipipe && DESIGN_GRPC_PORT="$DESIGN_PORT" uv run design-grpc) >"$DESIGN_LOG" 2>&1 &
 DESIGN_PID=$!
 wait_for "design-svc" 60 grep -q "design-svc gRPC listening" "$DESIGN_LOG"
 
-echo "== 启动 channel-svc（local profile，HTTP :8102 / gRPC :9102 → design :$DESIGN_PORT）"
+echo "== 启动 channel-svc（local profile，HTTP :8102 / gRPC :9102 → design :${DESIGN_PORT}）"
 ./gradlew :services:channel-svc:bootRun \
   --args="--spring.profiles.active=local --ishome.channel.design-target=localhost:$DESIGN_PORT" \
   >"$CHANNEL_LOG" 2>&1 &
