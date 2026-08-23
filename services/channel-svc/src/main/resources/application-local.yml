@@ -1,8 +1,3 @@
-# local profile：本地开发/E2E，无数据库启动（当前纵切无持久化用例；svc_channel 首个表落地后移除排除项）
-spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
-      - com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration
+# local profile：本地开发/E2E（mock 渠道 adapter 经 @Profile("local") 装配）。
+# svc_channel 首批表已落 Flyway：数据源不再排除，走 application.yml 默认值
+# （本地 PG localhost:15432/ishome，docker compose 项目 ishome-dev；ISHOME_DB_* 可覆盖）。

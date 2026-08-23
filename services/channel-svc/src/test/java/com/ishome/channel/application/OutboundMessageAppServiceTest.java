@@ -4,17 +4,40 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.ishome.channel.domain.ChannelAdapterRegistry;
+import com.ishome.channel.domain.OutboundSendRecord;
 import com.ishome.channel.domain.UnknownChannelException;
 import com.ishome.channel.domain.port.ChannelAdapter;
+import com.ishome.channel.domain.port.OutboundSendRecordRepository;
 import com.ishome.channel.v1.ChannelCapability;
 import com.ishome.channel.v1.MessageDirection;
 import com.ishome.channel.v1.UnifiedMessage;
 import com.ishome.common.v1.ChannelType;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class OutboundMessageAppServiceTest {
+
+  /** 内存假实现——仅供单测注入（PG 实现见 infrastructure.persistence，实跑在集成测试）。 */
+  static final class InMemoryOutboundSendRecordRepository implements OutboundSendRecordRepository {
+    private final Map<String, OutboundSendRecord> sentByKey = new ConcurrentHashMap<>();
+
+    @Override
+    public Optional<OutboundSendRecord> findByIdempotencyKey(String idempotencyKey) {
+      return Optional.ofNullable(sentByKey.get(idempotencyKey));
+    }
+
+    @Override
+    public void recordSent(UnifiedMessage message, String idempotencyKey, String channelMessageId) {
+      if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+        sentByKey.putIfAbsent(
+            idempotencyKey, new OutboundSendRecord(message.getMessageId(), channelMessageId));
+      }
+    }
+  }
 
   private final AtomicInteger sendCount = new AtomicInteger();
 
@@ -37,7 +60,9 @@ class OutboundMessageAppServiceTest {
       };
 
   private final OutboundMessageAppService service =
-      new OutboundMessageAppService(new ChannelAdapterRegistry(List.of(countingAdapter)));
+      new OutboundMessageAppService(
+          new ChannelAdapterRegistry(List.of(countingAdapter)),
+          new InMemoryOutboundSendRecordRepository());
 
   @Test
   void idempotencyKeyPreventsDuplicateSend() {

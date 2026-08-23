@@ -1,25 +1,57 @@
 package com.ishome.project.infrastructure.persistence;
 
 import com.ishome.project.domain.Project;
+import com.ishome.project.domain.ProjectStatus;
 import com.ishome.project.domain.port.ProjectRepository;
-import java.util.Map;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Repository;
 
-/** 内存实现（数据层任务后换 MyBatis + svc_project.projects）。 */
+/** svc_project.projects PG 实现：save 为按 id 的 insert-or-update。 */
 @Repository
 public class ProjectRepositoryImpl implements ProjectRepository {
 
-  private final Map<String, Project> store = new ConcurrentHashMap<>();
+  private final ProjectMapper projectMapper;
+
+  public ProjectRepositoryImpl(ProjectMapper projectMapper) {
+    this.projectMapper = projectMapper;
+  }
 
   @Override
   public void save(Project project) {
-    store.put(project.id(), project);
+    ProjectPO po = toPo(project);
+    if (projectMapper.selectById(project.id()) == null) {
+      projectMapper.insert(po);
+    } else {
+      po.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+      projectMapper.updateById(po);
+    }
   }
 
   @Override
   public Optional<Project> findById(String projectId) {
-    return Optional.ofNullable(store.get(projectId));
+    return Optional.ofNullable(projectMapper.findActiveById(projectId)).map(this::toDomain);
+  }
+
+  private ProjectPO toPo(Project project) {
+    ProjectPO po = new ProjectPO();
+    po.setId(project.id());
+    po.setUserId(project.userId());
+    po.setFloorplanRef(project.floorplanRef());
+    po.setProcessVersion(project.processVersion());
+    po.setCurrentMilestone(project.currentMilestone());
+    po.setStatus(project.status().name());
+    return po;
+  }
+
+  private Project toDomain(ProjectPO po) {
+    return new Project(
+        po.getId(),
+        po.getUserId(),
+        po.getFloorplanRef(),
+        po.getProcessVersion(),
+        po.getCurrentMilestone(),
+        ProjectStatus.valueOf(po.getStatus()));
   }
 }

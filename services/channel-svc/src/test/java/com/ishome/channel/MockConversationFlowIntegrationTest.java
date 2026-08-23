@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ishome.channel.interfaces.grpc.ChannelGrpcServer;
+import com.ishome.channel.testsupport.PostgresIntegrationTestSupport;
 import com.ishome.channel.v1.ChannelGrade;
 import com.ishome.channel.v1.ChannelServiceGrpc;
 import com.ishome.channel.v1.GetCapabilityRequest;
@@ -17,6 +18,7 @@ import com.ishome.common.v1.ChannelType;
 import com.ishome.design.v1.DesignServiceGrpc;
 import com.ishome.design.v1.IngestMessageRequest;
 import com.ishome.design.v1.IngestMessageResponse;
+import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
@@ -31,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -38,10 +41,12 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * mock 渠道 E2E（进程内假 design-svc）：注入入站 → DesignService.IngestMessage 收到； SendMessage 出站 → mock
- * 捕获可查；幂等键防重发。
+ * 捕获可查；幂等键防重发（真相在 svc_channel_it，PG 不可达则跳过）。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("local")
+@EnabledIfLocalPostgres
+@Import(PostgresIntegrationTestSupport.CleanMigrateConfig.class)
 class MockConversationFlowIntegrationTest {
 
   /** 进程内假 DesignService：捕获 IngestMessage 请求，回执 message_id。 */
@@ -73,6 +78,7 @@ class MockConversationFlowIntegrationTest {
 
   @DynamicPropertySource
   static void wireFakeDesignTarget(DynamicPropertyRegistry registry) {
+    PostgresIntegrationTestSupport.register(registry);
     registry.add("ishome.channel.design-target", () -> "localhost:" + fakeDesignServer.getPort());
     registry.add("ishome.channel.grpc-port", () -> 0);
   }

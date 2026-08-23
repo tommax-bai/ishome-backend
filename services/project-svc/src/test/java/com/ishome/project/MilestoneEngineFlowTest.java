@@ -21,33 +21,33 @@ import com.ishome.project.domain.CognitiveState;
 import com.ishome.project.domain.GenerationTask;
 import com.ishome.project.domain.GenerationTaskStatus;
 import com.ishome.project.infrastructure.definition.ProcessDefinitionRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.ArtifactRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.DecisionRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.GenerationTaskRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.ProjectRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.RevisionLogRepositoryImpl;
-import com.ishome.project.infrastructure.persistence.SlotRepositoryImpl;
+import com.ishome.project.testsupport.InMemoryArtifactRepository;
+import com.ishome.project.testsupport.InMemoryDecisionRepository;
+import com.ishome.project.testsupport.InMemoryGenerationTaskRepository;
+import com.ishome.project.testsupport.InMemoryProjectRepository;
+import com.ishome.project.testsupport.InMemoryRevisionLogRepository;
+import com.ishome.project.testsupport.InMemorySlotRepository;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** 里程碑引擎事件驱动全链路（真相在表，内存实现）：业务事实落库 → checkCompletion → 迁移 → on_enter 建任务；修订预算判定。 */
+/** 里程碑引擎事件驱动全链路（单测：内存假仓储注入，PG 实跑见 ProjectPersistenceIntegrationTest）。 */
 class MilestoneEngineFlowTest {
 
-  private GenerationTaskRepositoryImpl generationTaskRepository;
+  private InMemoryGenerationTaskRepository generationTaskRepository;
   private ProjectAppService projectAppService;
 
   @BeforeEach
   void setUp() {
-    generationTaskRepository = new GenerationTaskRepositoryImpl();
+    generationTaskRepository = new InMemoryGenerationTaskRepository();
     projectAppService =
         new ProjectAppService(
-            new ProjectRepositoryImpl(),
-            new SlotRepositoryImpl(),
-            new ArtifactRepositoryImpl(),
+            new InMemoryProjectRepository(),
+            new InMemorySlotRepository(),
+            new InMemoryArtifactRepository(),
             generationTaskRepository,
-            new RevisionLogRepositoryImpl(),
-            new DecisionRepositoryImpl(),
+            new InMemoryRevisionLogRepository(),
+            new InMemoryDecisionRepository(),
             new ProcessDefinitionRepositoryImpl());
   }
 

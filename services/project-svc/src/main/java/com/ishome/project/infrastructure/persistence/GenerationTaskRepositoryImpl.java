@@ -1,25 +1,59 @@
 package com.ishome.project.infrastructure.persistence;
 
 import com.ishome.project.domain.GenerationTask;
+import com.ishome.project.domain.GenerationTaskStatus;
 import com.ishome.project.domain.port.GenerationTaskRepository;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Repository;
 
-/** 内存实现（数据层任务后换 svc_project.generation_tasks）。 */
+/** svc_project.generation_tasks PG 实现：save 为按 id 的 insert-or-update（完成后回填 artifact_id）。 */
 @Repository
 public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
 
-  private final Map<String, GenerationTask> store = new ConcurrentHashMap<>();
+  private final GenerationTaskMapper generationTaskMapper;
+
+  public GenerationTaskRepositoryImpl(GenerationTaskMapper generationTaskMapper) {
+    this.generationTaskMapper = generationTaskMapper;
+  }
 
   @Override
   public void save(GenerationTask task) {
-    store.put(task.id(), task);
+    GenerationTaskPO po = toPo(task);
+    if (generationTaskMapper.selectById(task.id()) == null) {
+      generationTaskMapper.insert(po);
+    } else {
+      po.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+      generationTaskMapper.updateById(po);
+    }
   }
 
   @Override
   public List<GenerationTask> listByProjectId(String projectId) {
-    return store.values().stream().filter(t -> t.projectId().equals(projectId)).toList();
+    return generationTaskMapper.listActiveByProjectId(projectId).stream()
+        .map(this::toDomain)
+        .toList();
+  }
+
+  private GenerationTaskPO toPo(GenerationTask task) {
+    GenerationTaskPO po = new GenerationTaskPO();
+    po.setId(task.id());
+    po.setProjectId(task.projectId());
+    po.setTaskType(task.taskType());
+    po.setInputSnapshot(task.inputSnapshot());
+    po.setStatus(task.status().name());
+    po.setArtifactId(task.artifactId());
+    return po;
+  }
+
+  private GenerationTask toDomain(GenerationTaskPO po) {
+    return new GenerationTask(
+        po.getId(),
+        po.getProjectId(),
+        po.getTaskType(),
+        po.getInputSnapshot(),
+        GenerationTaskStatus.valueOf(po.getStatus()),
+        po.getArtifactId());
   }
 }

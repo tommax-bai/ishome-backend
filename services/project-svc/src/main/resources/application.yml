@@ -2,15 +2,16 @@ spring:
   application:
     name: ishome-project-svc
   datasource:
-    # 已拍板②：Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
-    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_project
-    username: ishome
-    password: ishome
+    # 已拍板②：Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）。
+    # 默认值 = 本地开发 PG（docker compose 项目 ishome-dev，localhost:15432）；部署环境经 ISHOME_DB_* 环境变量覆盖。
+    # stringtype=unspecified：MyBatis 以 String 参数写 jsonb 列（gen_params/lineage/directive 等）所需。
+    url: jdbc:postgresql://${ISHOME_DB_HOST:localhost}:${ISHOME_DB_PORT:15432}/${ISHOME_DB_NAME:ishome}?currentSchema=svc_project&stringtype=unspecified
+    username: ${ISHOME_DB_USER:ishome}
+    password: ${ISHOME_DB_PASSWORD:ishome-local-dev}
   flyway:
     schemas: svc_project
     default-schema: svc_project
-    # svc_project 首批表随路线图数据层任务落 Flyway；当前仓储为内存实现，先不迁移
-    enabled: false
+    enabled: true
 
 server:
   # 本地端口约定：channel 8102，project 8103

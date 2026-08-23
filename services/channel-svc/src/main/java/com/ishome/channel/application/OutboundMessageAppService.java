@@ -2,25 +2,27 @@ package com.ishome.channel.application;
 
 import com.ishome.channel.domain.ChannelAdapterRegistry;
 import com.ishome.channel.domain.port.ChannelAdapter;
+import com.ishome.channel.domain.port.OutboundSendRecordRepository;
 import com.ishome.channel.v1.MessageDirection;
 import com.ishome.channel.v1.UnifiedMessage;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 
 /**
  * 出站发送用例：SendMessage 按 channel_type 路由 adapter，幂等键防重发（IM 消息不可撤回，重复代价高）。
  *
- * <p>幂等实现为最小形态（进程内存）；TODO(durability)：随 svc_channel 首个持久化用例换持久幂等表。
+ * <p>幂等真相在 svc_channel.outbound_messages（幂等键唯一约束）：键命中即以既有记录复答，不再触达渠道； 空白键的发送仅审计留痕、每次实发。
  */
 @Service
 public class OutboundMessageAppService {
 
   private final ChannelAdapterRegistry channelAdapterRegistry;
-  private final Map<String, OutboundSendResult> sentByIdempotencyKey = new ConcurrentHashMap<>();
+  private final OutboundSendRecordRepository outboundSendRecordRepository;
 
-  public OutboundMessageAppService(ChannelAdapterRegistry channelAdapterRegistry) {
+  public OutboundMessageAppService(
+      ChannelAdapterRegistry channelAdapterRegistry,
+      OutboundSendRecordRepository outboundSendRecordRepository) {
     this.channelAdapterRegistry = channelAdapterRegistry;
+    this.outboundSendRecordRepository = outboundSendRecordRepository;
   }
 
   public OutboundSendResult send(UnifiedMessage message, String idempotencyKey) {
@@ -28,17 +30,14 @@ public class OutboundMessageAppService {
       throw new IllegalArgumentException("send requires direction=OUTBOUND");
     }
     if (!idempotencyKey.isBlank()) {
-      OutboundSendResult sent = sentByIdempotencyKey.get(idempotencyKey);
-      if (sent != null) {
-        return sent;
+      var sent = outboundSendRecordRepository.findByIdempotencyKey(idempotencyKey);
+      if (sent.isPresent()) {
+        return new OutboundSendResult(sent.get().messageId(), sent.get().channelMessageId());
       }
     }
     ChannelAdapter adapter = channelAdapterRegistry.getAdapter(message.getChannelType());
     String channelMessageId = adapter.send(message);
-    OutboundSendResult result = new OutboundSendResult(message.getMessageId(), channelMessageId);
-    if (!idempotencyKey.isBlank()) {
-      sentByIdempotencyKey.putIfAbsent(idempotencyKey, result);
-    }
-    return result;
+    outboundSendRecordRepository.recordSent(message, idempotencyKey, channelMessageId);
+    return new OutboundSendResult(message.getMessageId(), channelMessageId);
   }
 }
