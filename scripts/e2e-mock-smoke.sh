@@ -18,7 +18,9 @@ CHANNEL_HTTP="http://localhost:8102"
 LOG_DIR="$(mktemp -d /tmp/ishome-e2e.XXXXXX)"
 DESIGN_LOG="$LOG_DIR/design-svc.log"
 CHANNEL_LOG="$LOG_DIR/channel-svc.log"
-EXPECT_PREFIX='[design-svc] 收到你的消息：'
+# Orchestrator v1 后回话内容由 LLM 生成，不再断言固定前缀。断言不变量：每条入站
+# 至少一条文本出站（design-svc 的 LLM 故障兜底也保证这一点，网关离线时同样成立）。
+EXPECT_PREFIX='"text"'
 
 cleanup() {
   echo "== cleanup（日志留存 ${LOG_DIR}）"
