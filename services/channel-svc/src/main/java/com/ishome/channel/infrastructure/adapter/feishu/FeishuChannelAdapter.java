@@ -10,6 +10,8 @@ import com.lark.oapi.Client;
 import com.lark.oapi.service.im.v1.model.CreateMessageReq;
 import com.lark.oapi.service.im.v1.model.CreateMessageReqBody;
 import com.lark.oapi.service.im.v1.model.CreateMessageResp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(name = "channel.feishu.ishome-prod.app_id")
 public final class FeishuChannelAdapter implements ChannelAdapter {
+
+  private static final Logger log = LoggerFactory.getLogger(FeishuChannelAdapter.class);
 
   private final Client client;
 
@@ -70,6 +74,11 @@ public final class FeishuChannelAdapter implements ChannelAdapter {
         throw new IllegalStateException(
             "feishu send failed: code=" + resp.getCode() + " msg=" + resp.getMsg());
       }
+      log.info(
+          "feishu message sent: message_id={} feishu_message_id={} msg_type={}",
+          message.getMessageId(),
+          resp.getData().getMessageId(),
+          outbound.msgType());
       return resp.getData().getMessageId();
     } catch (Exception e) {
       throw new IllegalStateException("feishu send failed", e);

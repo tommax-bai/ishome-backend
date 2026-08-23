@@ -4,6 +4,8 @@ import com.ishome.channel.domain.port.DesignConversationGateway;
 import com.ishome.channel.domain.port.InboundMessageRelay;
 import com.ishome.channel.v1.MessageDirection;
 import com.ishome.channel.v1.UnifiedMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -13,6 +15,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class InboundMessageAppService implements InboundMessageRelay {
+
+  private static final Logger log = LoggerFactory.getLogger(InboundMessageAppService.class);
 
   private final DesignConversationGateway designConversationGateway;
 
@@ -27,6 +31,14 @@ public class InboundMessageAppService implements InboundMessageRelay {
     }
     // TODO(identity)：external_user_id → identity-svc 渠道绑定，归一 user_id（对齐 §6.5）
     // TODO(events)：发布 CloudEvents channel.message.received（outbox，RocketMQ 接入后）
-    return designConversationGateway.ingest(message);
+    String ackId = designConversationGateway.ingest(message);
+    log.info(
+        "inbound relayed to design: channel={}/{} message_id={} content={} ack={}",
+        message.getChannelType(),
+        message.getChannelInstance(),
+        message.getMessageId(),
+        message.getContentCase(),
+        ackId);
+    return ackId;
   }
 }
