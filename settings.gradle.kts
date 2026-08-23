@@ -14,6 +14,8 @@ rootProject.name = "ishome-backend"
 
 include(":shared:kernel")
 include(":shared:starter")
+// contracts 生成代码纳入（源目录来自 ishome-contracts 检出，见该模块 build 文件；禁手写客户端）
+include(":shared:contracts")
 
 // 业务服务（DDD-lite 四层，开发规范 §1.1）；新增服务用 scripts/new-service.sh 生成，不手搭
 include(":services:identity-svc")

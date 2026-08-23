@@ -2,6 +2,10 @@
 [versions]
 springBoot = "3.5.16"
 mybatisPlus = "3.5.17"
+# contracts 生成代码的运行时（与 ishome-contracts gen/java 包装声明一致，升级需两处同步；
+# protobuf 最低版由 buf 远程插件的 gencode 决定——生成文件里 validateProtobufGencodeVersion 有写）
+protobuf = "4.36.0"
+grpc = "1.83.1"
 archunit = "1.5.0"
 ulid = "5.2.4"
 junit = "5.12.2"
@@ -11,6 +15,10 @@ pmd = "7.8.0"
 
 [libraries]
 mybatis-plus-starter = { module = "com.baomidou:mybatis-plus-spring-boot3-starter", version.ref = "mybatisPlus" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+annotations-api = { module = "org.apache.tomcat:annotations-api", version = "6.0.53" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 ulid-creator = { module = "com.github.f4b6a3:ulid-creator", version.ref = "ulid" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }

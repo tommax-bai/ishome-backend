@@ -10,12 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # contracts 生成代码来源（shared/contracts 模块 sourceSet）：只读 deploy key 检出 tag
+      - uses: actions/checkout@v4
+        with:
+          repository: tommax-bai/ishome-contracts
+          ref: v0.1.1
+          ssh-key: ${{ secrets.CONTRACTS_DEPLOY_KEY }}
+          path: contracts-checkout
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       # build = 编译 + Checkstyle（命名禁令）+ PMD + Spotless + ArchUnit 分层测试
-      - run: ./gradlew build
+      - run: ./gradlew build -PcontractsRepoPath=contracts-checkout
       # 渠道名三处白名单（R4）：渠道名字面量不得出现在 channel-svc 之外
       - run: scripts/check-channel-literals.sh

@@ -6,3 +6,5 @@ out/
 .DS_Store
 .vscode/
 local.properties
+# CI 内 contracts 仓检出位置（actions/checkout path）
+contracts-checkout/
