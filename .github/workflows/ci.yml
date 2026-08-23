@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      # build = 编译 + Checkstyle（命名禁令）+ PMD + Spotless + ArchUnit 分层测试
+      - run: ./gradlew build
+      # 渠道名三处白名单（R4）：渠道名字面量不得出现在 channel-svc 之外
+      - run: scripts/check-channel-literals.sh

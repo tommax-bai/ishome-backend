@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: ishome-estate-svc
+  datasource:
+    # 待拍板②默认 Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
+    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_estate
+    username: ishome
+    password: ishome
+  flyway:
+    # catalog（三维资产库）为逻辑独立域、物理落 estate（对齐文档 §3.3）：
+    # schema 独立为 svc_catalog——拆库不流血纪律；升格独立服务的触发条件写死在对齐文档
+    schemas: svc_estate,svc_catalog
+    default-schema: svc_estate
+
+server:
+  port: 8080

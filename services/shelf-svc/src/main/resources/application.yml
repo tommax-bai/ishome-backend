@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: ishome-shelf-svc
+  datasource:
+    # 待拍板②默认 Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
+    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_shelf
+    username: ishome
+    password: ishome
+  flyway:
+    schemas: svc_shelf
+    default-schema: svc_shelf
+
+server:
+  port: 8080

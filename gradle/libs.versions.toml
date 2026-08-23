@@ -1,0 +1,20 @@
+# 版本唯一真源。Spring 生态版本由 Spring Boot BOM 管理（flyway/postgresql/testcontainers 等不在此重复钉版本）
+[versions]
+springBoot = "3.5.16"
+mybatisPlus = "3.5.17"
+archunit = "1.5.0"
+ulid = "5.2.4"
+junit = "5.12.2"
+googleJavaFormat = "1.36.1"
+checkstyle = "10.20.0"
+pmd = "7.8.0"
+
+[libraries]
+mybatis-plus-starter = { module = "com.baomidou:mybatis-plus-spring-boot3-starter", version.ref = "mybatisPlus" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+ulid-creator = { module = "com.github.f4b6a3:ulid-creator", version.ref = "ulid" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+# 以下由 Spring Boot BOM 定版
+flyway-core = { module = "org.flywaydb:flyway-core" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+postgresql = { module = "org.postgresql:postgresql" }

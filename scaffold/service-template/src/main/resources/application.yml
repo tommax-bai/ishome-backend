@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: ishome-__DOMAIN__-svc
+  datasource:
+    # 待拍板②默认 Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
+    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc___DOMAIN__
+    username: ishome
+    password: ishome
+  flyway:
+    schemas: svc___DOMAIN__
+    default-schema: svc___DOMAIN__
+
+server:
+  port: 8080
