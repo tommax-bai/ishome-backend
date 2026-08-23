@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: ishome-project-svc
+  datasource:
+    # 已拍板②：Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
+    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_project
+    username: ishome
+    password: ishome
+  flyway:
+    schemas: svc_project
+    default-schema: svc_project
+    # svc_project 首批表随路线图数据层任务落 Flyway；当前仓储为内存实现，先不迁移
+    enabled: false
+
+server:
+  # 本地端口约定：channel 8102，project 8103
+  port: 8103

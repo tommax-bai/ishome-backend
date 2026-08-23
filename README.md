@@ -15,6 +15,7 @@ services/
   trade-svc      订单/支付/退款/对账（资金路径纪律：幂等键、金额 int 分、outbox）
   shelf-svc      选品池、联盟同步、归因
   channel-svc    IM 渠道网关：ChannelAdapter 插件（feishu/mock 起）+ 触达策略
+  project-svc    项目唯一真相（V1.5）：里程碑引擎（事件驱动 checkCompletion）+ slot/artifact/task/revision + 修订预算 + 流程定义分发
   c-bff          C 端聚合（H5 指图时刻）——三层，无 domain
   admin-bff      管理端聚合 + 模板验收台——三层，无 domain
 shared/
@@ -22,7 +23,7 @@ shared/
   starter        公共 Spring Boot 约定入驻点（保持薄）
 ```
 
-生成域（genpipe/design）在 `ishome-aipipe` 仓（Python）；契约唯一真源在 `ishome-contracts` 仓。
+生成域与会话域（genpipe/chat——V1.5：原 design-svc 拆为 chat-svc + project-svc，chat 归 `ishome-aipipe` 仓（Python），project-svc 在本仓）；契约唯一真源在 `ishome-contracts` 仓。
 
 ## 规范即工具链（本仓的执行面）
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 第一条纵切的跨语言 E2E 冒烟：mock 渠道注入一条用户消息 → channel-svc → design-svc 回话 → mock 出站捕获。
-# 前置：../ishome-aipipe 已 uv sync；本机 9101 被占用，design-svc 用 19101（联调约定）。
+# 第一条纵切的跨语言 E2E 冒烟：mock 渠道注入一条用户消息 → channel-svc → chat-svc 回话 → mock 出站捕获。
+# 前置：../ishome-aipipe 已 uv sync；本机 9101 被占用，chat-svc 用 19101（联调约定）。
 # 用法：scripts/e2e-mock-smoke.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,22 +13,22 @@ elif [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
   export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 fi
 
-DESIGN_PORT="${DESIGN_PORT:-19101}"
+CHAT_PORT="${CHAT_PORT:-19101}"
 CHANNEL_HTTP="http://localhost:8102"
 LOG_DIR="$(mktemp -d /tmp/ishome-e2e.XXXXXX)"
-DESIGN_LOG="$LOG_DIR/design-svc.log"
+CHAT_LOG="$LOG_DIR/chat-svc.log"
 CHANNEL_LOG="$LOG_DIR/channel-svc.log"
 # Orchestrator v1 后回话内容由 LLM 生成，不再断言固定前缀。断言不变量：每条入站
-# 至少一条文本出站（design-svc 的 LLM 故障兜底也保证这一点，网关离线时同样成立）。
+# 至少一条文本出站（chat-svc 的 LLM 故障兜底也保证这一点，网关离线时同样成立）。
 EXPECT_PREFIX='"text"'
 
 cleanup() {
   echo "== cleanup（日志留存 ${LOG_DIR}）"
   [ -n "${CHANNEL_PID:-}" ] && { pkill -P "$CHANNEL_PID" 2>/dev/null || true; kill "$CHANNEL_PID" 2>/dev/null || true; }
-  [ -n "${DESIGN_PID:-}" ] && { pkill -P "$DESIGN_PID" 2>/dev/null || true; kill "$DESIGN_PID" 2>/dev/null || true; }
+  [ -n "${CHAT_PID:-}" ] && { pkill -P "$CHAT_PID" 2>/dev/null || true; kill "$CHAT_PID" 2>/dev/null || true; }
   # bootRun/uv 的孙进程兜底
   pkill -f "com.ishome.channel.ChannelApplication" 2>/dev/null || true
-  pkill -f "design-grpc" 2>/dev/null || true
+  pkill -f "chat-grpc" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -39,18 +39,20 @@ wait_for() { # wait_for <描述> <超时秒> <命令...>
     sleep 1
   done
   echo "!! $desc 超时（${timeout_seconds}s）" >&2
-  tail -30 "$DESIGN_LOG" "$CHANNEL_LOG" 2>/dev/null >&2 || true
+  tail -30 "$CHAT_LOG" "$CHANNEL_LOG" 2>/dev/null >&2 || true
   return 1
 }
 
-echo "== 启动 design-svc（gRPC :${DESIGN_PORT}）"
-(cd ../ishome-aipipe && DESIGN_GRPC_PORT="$DESIGN_PORT" uv run design-grpc) >"$DESIGN_LOG" 2>&1 &
-DESIGN_PID=$!
-wait_for "design-svc" 60 grep -q "design-svc gRPC listening" "$DESIGN_LOG"
+echo "== 启动 chat-svc（gRPC :${CHAT_PORT}）"
+(cd ../ishome-aipipe && CHAT_GRPC_PORT="$CHAT_PORT" uv run chat-grpc) >"$CHAT_LOG" 2>&1 &
+CHAT_PID=$!
+wait_for "chat-svc" 60 grep -q "chat-svc gRPC listening" "$CHAT_LOG"
 
-echo "== 启动 channel-svc（local profile，HTTP :8102 / gRPC :9102 → design :${DESIGN_PORT}）"
+# 注：--ishome.channel.design-target 是 channel-svc 现行 Spring 配置键（design.v1 契约入口与
+# channel 转发目标不变，V1.5 交接约定）；channel 侧改键另行处理，此处只改脚本内提法。
+echo "== 启动 channel-svc（local profile，HTTP :8102 / gRPC :9102 → chat :${CHAT_PORT}）"
 ./gradlew :services:channel-svc:bootRun \
-  --args="--spring.profiles.active=local --ishome.channel.design-target=localhost:$DESIGN_PORT" \
+  --args="--spring.profiles.active=local --ishome.channel.design-target=localhost:$CHAT_PORT" \
   >"$CHANNEL_LOG" 2>&1 &
 CHANNEL_PID=$!
 wait_for "channel-svc" 120 curl -sf "$CHANNEL_HTTP/mock/channels/outbound"
@@ -61,7 +63,7 @@ curl -sf -X POST "$CHANNEL_HTTP/mock/channels/inbound" \
   -d '{"user_id":"u-e2e","text":"你好，我想设计我的家"}'
 echo
 
-echo "== 等待 design-svc 回话进入 mock 出站捕获"
+echo "== 等待 chat-svc 回话进入 mock 出站捕获"
 for _ in $(seq 1 60); do
   outbound="$(curl -sf "$CHANNEL_HTTP/mock/channels/outbound" || echo '')"
   if [[ "$outbound" == *"$EXPECT_PREFIX"* ]]; then
@@ -74,5 +76,5 @@ done
 
 echo "!! E2E FAIL：60s 内未捕获到 '$EXPECT_PREFIX'" >&2
 echo "-- 最近出站捕获：$(curl -s "$CHANNEL_HTTP/mock/channels/outbound" || true)" >&2
-tail -40 "$DESIGN_LOG" "$CHANNEL_LOG" >&2 || true
+tail -40 "$CHAT_LOG" "$CHANNEL_LOG" >&2 || true
 exit 1

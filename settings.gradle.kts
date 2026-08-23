@@ -24,6 +24,8 @@ include(":services:content-svc")
 include(":services:trade-svc")
 include(":services:shelf-svc")
 include(":services:channel-svc")
+// V1.5 裁决：design-svc 一拆为二——chat-svc（Python，aipipe 仓）+ project-svc（本仓，项目唯一真相）
+include(":services:project-svc")
 
 // BFF（三层，无 domain，开发规范 §1.2）
 include(":services:c-bff")
