@@ -34,6 +34,8 @@ class FeishuMessageTranslatorTest {
     assertEquals(MessageDirection.MESSAGE_DIRECTION_INBOUND, message.get().getDirection());
     assertEquals("ou_123", message.get().getExternalUserId());
     assertEquals(1_724_400_000L, message.get().getOccurredAt().getSeconds());
+    // message_id 必须复用飞书原生消息 id：事件重推去重的关键（2026-08-23 真机事故回归断言）
+    assertEquals("om_456", message.get().getMessageId());
     // 渠道方言只进 raw_payload 存档
     assertEquals(
         "om_456", message.get().getRawPayload().getFieldsOrThrow("message_id").getStringValue());
@@ -59,10 +61,20 @@ class FeishuMessageTranslatorTest {
 
   @Test
   void translatesCardButtonCallbackToSelectedOption() {
-    UnifiedMessage message = FeishuMessageTranslator.toSelectedOption("ou_123", "opt-confirm", 0L);
+    UnifiedMessage message =
+        FeishuMessageTranslator.toSelectedOption("evt_001", "ou_123", "opt-confirm", 0L);
 
     assertEquals("opt-confirm", message.getQuickReply().getSelectedOptionId());
     assertEquals(MessageDirection.MESSAGE_DIRECTION_INBOUND, message.getDirection());
+    // message_id 复用回调事件 event_id（重推去重）
+    assertEquals("evt_001", message.getMessageId());
+  }
+
+  @Test
+  void mintsUlidWhenChannelMessageIdMissing() {
+    UnifiedMessage message = FeishuMessageTranslator.toSelectedOption("", "ou_123", "opt-x", 0L);
+
+    assertTrue(message.getMessageId().length() > 0);
   }
 
   @Test

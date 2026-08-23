@@ -33,11 +33,16 @@ final class FeishuMessageTranslator {
 
   private FeishuMessageTranslator() {}
 
-  /** 入站：飞书消息事件 → 统一模型。不支持的 msg_type 返回 empty（调用方记日志跳过）。 */
+  /**
+   * 入站：飞书消息事件 → 统一模型。不支持的 msg_type 返回 empty（调用方记日志跳过）。
+   *
+   * <p>message_id 直接采用飞书原生消息 id：事件重推（处理超时未及时 ack 时飞书会重投同一事件） 在 design-svc 幂等去重处必须命中同一
+   * id，否则同一条用户消息会被回复多遍（2026-08-23 真机事故）。
+   */
   static Optional<UnifiedMessage> toInboundMessage(
       String openId, String feishuMessageId, String msgType, String contentJson, long createdAtMs) {
     UnifiedMessage.Builder builder =
-        inboundBuilder(openId, createdAtMs)
+        inboundBuilder(feishuMessageId, openId, createdAtMs)
             .setRawPayload(
                 Struct.newBuilder()
                     .putFields(
@@ -64,9 +69,14 @@ final class FeishuMessageTranslator {
     };
   }
 
-  /** 入站：卡片按钮回调 → 统一模型"用户选择"消息（selected_option_id 仅入站方向使用）。 */
-  static UnifiedMessage toSelectedOption(String openId, String optionId, long createdAtMs) {
-    return inboundBuilder(openId, createdAtMs)
+  /**
+   * 入站：卡片按钮回调 → 统一模型"用户选择"消息（selected_option_id 仅入站方向使用）。
+   *
+   * <p>message_id 采用回调事件的 event_id（重推去重理由同上）。
+   */
+  static UnifiedMessage toSelectedOption(
+      String eventId, String openId, String optionId, long createdAtMs) {
+    return inboundBuilder(eventId, openId, createdAtMs)
         .setQuickReply(QuickReplyContent.newBuilder().setSelectedOptionId(optionId).build())
         .build();
   }
@@ -138,9 +148,14 @@ final class FeishuMessageTranslator {
     };
   }
 
-  private static UnifiedMessage.Builder inboundBuilder(String openId, long createdAtMs) {
+  private static UnifiedMessage.Builder inboundBuilder(
+      String channelMessageId, String openId, long createdAtMs) {
+    String messageId =
+        (channelMessageId == null || channelMessageId.isBlank())
+            ? UlidCreator.getUlid().toString()
+            : channelMessageId;
     return UnifiedMessage.newBuilder()
-        .setMessageId(UlidCreator.getUlid().toString())
+        .setMessageId(messageId)
         .setChannelType(ChannelType.CHANNEL_TYPE_FEISHU)
         .setChannelInstance(FEISHU_CHANNEL_INSTANCE)
         .setDirection(MessageDirection.MESSAGE_DIRECTION_INBOUND)

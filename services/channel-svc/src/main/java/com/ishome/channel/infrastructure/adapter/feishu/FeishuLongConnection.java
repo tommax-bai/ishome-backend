@@ -9,6 +9,8 @@ import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerResponse;
 import com.lark.oapi.service.im.ImService;
 import com.lark.oapi.service.im.v1.model.EventMessage;
 import com.lark.oapi.service.im.v1.model.P2MessageReceiveV1;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,6 +30,13 @@ public class FeishuLongConnection implements SmartLifecycle {
 
   private final FeishuProperties properties;
   private final InboundMessageRelay inboundMessageRelay;
+
+  /**
+   * 事件处理必须快速返回 ack，否则飞书按超时重推同一事件（2026-08-23 真机事故：同步等 LLM 链路跑完导致每条消息被回复多遍）。中继（含下游 LLM
+   * 调用）一律异步执行，虚拟线程承载。
+   */
+  private final ExecutorService relayExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
   private volatile com.lark.oapi.ws.Client wsClient;
   private volatile boolean running;
 
@@ -78,7 +87,7 @@ public class FeishuLongConnection implements SmartLifecycle {
             message.getContent(),
             createdAtMs)
         .ifPresentOrElse(
-            inboundMessageRelay::relay,
+            this::relayAsync,
             () ->
                 log.info(
                     "unsupported feishu msg_type skipped: {} event={}",
@@ -92,9 +101,23 @@ public class FeishuLongConnection implements SmartLifecycle {
       return;
     }
     String openId = event.getEvent().getOperator().getOpenId();
-    inboundMessageRelay.relay(
+    relayAsync(
         FeishuMessageTranslator.toSelectedOption(
-            openId, optionId.toString(), System.currentTimeMillis()));
+            event.getHeader().getEventId(),
+            openId,
+            optionId.toString(),
+            System.currentTimeMillis()));
+  }
+
+  private void relayAsync(com.ishome.channel.v1.UnifiedMessage message) {
+    relayExecutor.execute(
+        () -> {
+          try {
+            inboundMessageRelay.relay(message);
+          } catch (RuntimeException e) {
+            log.error("inbound relay failed: message_id={}", message.getMessageId(), e);
+          }
+        });
   }
 
   private static long parseCreateTimeMs(String createTime) {
@@ -108,6 +131,7 @@ public class FeishuLongConnection implements SmartLifecycle {
   @Override
   public void stop() {
     // SDK ws client 无显式 stop；长连接随进程存活，autoReconnect 负责断线重连
+    relayExecutor.shutdown();
     running = false;
   }
 
