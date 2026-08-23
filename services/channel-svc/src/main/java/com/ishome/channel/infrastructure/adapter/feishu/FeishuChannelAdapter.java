@@ -1,34 +1,78 @@
 package com.ishome.channel.infrastructure.adapter.feishu;
 
-import com.ishome.channel.domain.ChannelCapability;
-import com.ishome.channel.domain.HumanTakeover;
 import com.ishome.channel.domain.port.ChannelAdapter;
-import com.ishome.channel.domain.port.OutboundMessage;
+import com.ishome.channel.v1.ChannelCapability;
+import com.ishome.channel.v1.ChannelGrade;
+import com.ishome.channel.v1.HumanTakeover;
+import com.ishome.channel.v1.UnifiedMessage;
+import com.ishome.common.v1.ChannelType;
+import com.lark.oapi.Client;
+import com.lark.oapi.service.im.v1.model.CreateMessageReq;
+import com.lark.oapi.service.im.v1.model.CreateMessageReqBody;
+import com.lark.oapi.service.im.v1.model.CreateMessageResp;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
 /**
- * 飞书 adapter（首发渠道，对齐文档 §6.7）。
- *
- * <p>事件接入：开发环境用开放平台长连接模式起步（SDK 主动外连，无需公网回调地址，不经统一网关）； webhook 模式作为部署期选项。消息映射：text/image 直映射；card →
- * 飞书卡片 JSON； quick_reply → 卡片按钮，按钮回调翻译回统一模型的"用户选择"消息。 飞书富卡片（输入框/下拉）超出五类基础模型的能力只经能力声明暴露，不进基础契约。
+ * 飞书 adapter（首发渠道，对齐文档 §6.7）。凭证门控：`channel.feishu.ishome-prod.app_id` 配置存在才装配，缺省时本渠道整体不启用（注册表查无 →
+ * CHANNEL_xxx 错误，不报启动错）。
  *
  * <p>渠道名字面量只许出现在本 adapter 包内（白名单①，规范 §6.2）。
  */
+@Component
+@ConditionalOnProperty(name = "channel.feishu.ishome-prod.app_id")
 public final class FeishuChannelAdapter implements ChannelAdapter {
 
+  private final Client client;
+
+  public FeishuChannelAdapter(FeishuProperties properties) {
+    this.client = Client.newBuilder(properties.appId(), properties.appSecret()).build();
+  }
+
   @Override
-  public String channelType() {
-    return "feishu";
+  public ChannelType channelType() {
+    return ChannelType.CHANNEL_TYPE_FEISHU;
   }
 
   @Override
   public ChannelCapability capability() {
-    // can_send_proactive=true：应用可用范围内无发送窗口限制（对齐 §6.7）；
-    // media limits 落地时按开放平台现行限制核实
-    return new ChannelCapability(true, true, true, HumanTakeover.GROUP, "TODO: 按开放平台现行限制核实");
+    // can_send_proactive=true：应用可用范围内无发送窗口限制（对齐 §6.7）。
+    // human_takeover=GROUP 是渠道协议属性的客观描述，产品不使用此能力（V1.3）。
+    // media_limits 落地真机联调时按开放平台现行限制核实（TODO(media)）。
+    return ChannelCapability.newBuilder()
+        .setCanSendProactive(true)
+        .setProactivePolicyRef("feishu-default")
+        .setSupportsCard(true)
+        .setSupportsQuickReply(true)
+        .setHumanTakeover(HumanTakeover.HUMAN_TAKEOVER_GROUP)
+        .setChannelGrade(ChannelGrade.CHANNEL_GRADE_SESSION)
+        .build();
   }
 
   @Override
-  public void send(OutboundMessage message) {
-    throw new UnsupportedOperationException("TODO: 飞书开放平台接入（长连接模式起步）");
+  public String send(UnifiedMessage message) {
+    FeishuOutboundMessage outbound = FeishuMessageTranslator.toOutboundMessage(message);
+    CreateMessageReq req =
+        CreateMessageReq.newBuilder()
+            .receiveIdType("open_id")
+            .createMessageReqBody(
+                CreateMessageReqBody.newBuilder()
+                    .receiveId(outbound.receiveId())
+                    .msgType(outbound.msgType())
+                    .content(outbound.contentJson())
+                    // 渠道侧幂等（uuid 相同则飞书不重发），复用统一模型 message_id
+                    .uuid(message.getMessageId())
+                    .build())
+            .build();
+    try {
+      CreateMessageResp resp = client.im().message().create(req);
+      if (!resp.success()) {
+        throw new IllegalStateException(
+            "feishu send failed: code=" + resp.getCode() + " msg=" + resp.getMsg());
+      }
+      return resp.getData().getMessageId();
+    } catch (Exception e) {
+      throw new IllegalStateException("feishu send failed", e);
+    }
   }
 }

@@ -2,7 +2,7 @@ spring:
   application:
     name: ishome-channel-svc
   datasource:
-    # 待拍板②默认 Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
+    # 已拍板②：Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
     url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_channel
     username: ishome
     password: ishome
@@ -11,4 +11,14 @@ spring:
     default-schema: svc_channel
 
 server:
-  port: 8080
+  port: 8102
+
+ishome:
+  channel:
+    # ChannelService gRPC 监听端口（0 = 随机，供集成测试）
+    grpc-port: 9102
+    # design-svc DesignService 目标地址
+    design-target: localhost:9101
+
+# 飞书接入实例凭证（缺省则 feishu adapter 不装配，渠道不启用）：
+# channel.feishu.ishome-prod.app_id / app_secret —— 经环境变量或 secret 注入，勿写进本文件

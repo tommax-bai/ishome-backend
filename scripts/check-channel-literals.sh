@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-pattern='"(feishu|lark|wecom|wechat_oa|wechat_mini|sms)"'
+pattern='"(feishu|lark|wecom|wechat_oa|wechat_mini|sms|mock)"'
 hits="$(grep -rnE "$pattern" services --include='*.java' 2>/dev/null | grep -v '^services/channel-svc/' | grep -v '/src/test/' || true)"
 
 if [ -n "$hits" ]; then
