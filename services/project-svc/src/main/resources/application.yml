@@ -13,6 +13,9 @@ spring:
     schemas: svc_project,svc_rulebook
     default-schema: svc_project
     enabled: true
+    placeholders:
+      # V2 的 rulebook schema 名：集成测试注入 svc_rulebook_it（clean 不触碰正式库）
+      rulebook_schema: svc_rulebook
 
 server:
   # 本地端口约定：channel 8102，project 8103

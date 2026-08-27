@@ -5,11 +5,13 @@
 --       + checks（规则 4.10b：纪律唯一形态，不进 calibration 状态机，锚 decided_by）
 --       + releases（规则 4.12：域级不可变发布快照，运行时唯一读取面）。
 -- asset_id = 语义标识符（规则 1.7：lkp-*/rule-*/attr-*/cr-*/persona-*），(asset_id, version) 唯一。
+-- schema 名经 Flyway placeholder ${rulebook_schema} 注入：正式=svc_rulebook（application.yml），
+-- 集成测试=svc_rulebook_it（PostgresIntegrationTestSupport）——IT 的 clean→migrate 不触碰正式库。
 
-CREATE SCHEMA IF NOT EXISTS svc_rulebook;
+CREATE SCHEMA IF NOT EXISTS ${rulebook_schema};
 
 -- rule 形态：触发 → 条目（规范 §4.1 三层三触发）
-CREATE TABLE svc_rulebook.rules (
+CREATE TABLE ${rulebook_schema}.rules (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,
@@ -29,10 +31,10 @@ CREATE TABLE svc_rulebook.rules (
     deleted_at     timestamptz,
     CONSTRAINT uk_rules_asset_version UNIQUE (asset_id, version)
 );
-CREATE INDEX idx_rules_domain ON svc_rulebook.rules (domain);
+CREATE INDEX idx_rules_domain ON ${rulebook_schema}.rules (domain);
 
 -- parameter 形态：计算依据与数值区间（lkp-* 落点求值的数据源）
-CREATE TABLE svc_rulebook.parameters (
+CREATE TABLE ${rulebook_schema}.parameters (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,
@@ -53,11 +55,11 @@ CREATE TABLE svc_rulebook.parameters (
     deleted_at     timestamptz,
     CONSTRAINT uk_parameters_asset_version UNIQUE (asset_id, version)
 );
-CREATE INDEX idx_parameters_domain ON svc_rulebook.parameters (domain);
+CREATE INDEX idx_parameters_domain ON ${rulebook_schema}.parameters (domain);
 
 -- attribute 形态：entity_type + JSONB 属性包承载异构实体，不按实体类建表（规则 4.12）。
 -- effective_* 提升为实体列：过期降档检查（cr-budget-stale-price 类）需要可索引的时效。
-CREATE TABLE svc_rulebook.attributes (
+CREATE TABLE ${rulebook_schema}.attributes (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,
@@ -79,11 +81,11 @@ CREATE TABLE svc_rulebook.attributes (
     deleted_at     timestamptz,
     CONSTRAINT uk_attributes_asset_version UNIQUE (asset_id, version)
 );
-CREATE INDEX idx_attributes_domain_entity ON svc_rulebook.attributes (domain, entity_type);
+CREATE INDEX idx_attributes_domain_entity ON ${rulebook_schema}.attributes (domain, entity_type);
 
 -- template 形态：gen-assembled 拼装句式。规则 4.17：由自迭代回路自产，人不写——建表先行，冷启动期允许
 -- "人驱动 AI 起草→种子集回归→观察态"路径灌入（规则 4.19），status 区分观察态。
-CREATE TABLE svc_rulebook.templates (
+CREATE TABLE ${rulebook_schema}.templates (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,
@@ -99,10 +101,10 @@ CREATE TABLE svc_rulebook.templates (
     deleted_at     timestamptz,
     CONSTRAINT uk_templates_asset_version UNIQUE (asset_id, version)
 );
-CREATE INDEX idx_templates_domain ON svc_rulebook.templates (domain);
+CREATE INDEX idx_templates_domain ON ${rulebook_schema}.templates (domain);
 
 -- vocabulary 形态：受控词汇（规格词表/修订维度/色彩命名/禁词表公共部分）
-CREATE TABLE svc_rulebook.vocabularies (
+CREATE TABLE ${rulebook_schema}.vocabularies (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,          -- 跨域词表 domain='cross'
@@ -119,7 +121,7 @@ CREATE TABLE svc_rulebook.vocabularies (
 );
 
 -- persona 资产包（规则 4.13 四件）：一域一份，随域 release 发布
-CREATE TABLE svc_rulebook.personas (
+CREATE TABLE ${rulebook_schema}.personas (
     id               varchar(26)  PRIMARY KEY,
     asset_id         varchar(96)  NOT NULL,
     domain           varchar(32)  NOT NULL,
@@ -139,7 +141,7 @@ CREATE TABLE svc_rulebook.personas (
 
 -- check 形态（规则 4.10b）：纪律的唯一存在形式。不进 calibration 状态机（无 calibration 列）；
 -- 正当性锚 = decided_by（NOT NULL）。不携带内容数值：数值阈值只能经 threshold_refs 引用 parameters.asset_id。
-CREATE TABLE svc_rulebook.checks (
+CREATE TABLE ${rulebook_schema}.checks (
     id             varchar(26)  PRIMARY KEY,
     asset_id       varchar(96)  NOT NULL,
     domain         varchar(32)  NOT NULL,          -- 跨域机检 domain='cross'（灌库/发布时物化进各域 release）
@@ -159,7 +161,7 @@ CREATE TABLE svc_rulebook.checks (
 
 -- 域级发布快照（规则 4.12）：不可变；运行时求值只读本表。snapshot = 该域全部 calibrated 资产
 -- + 物化的跨域 check/词表的完整 JSON。release_tag 形如 'lighting@v3'。发布后行不再 UPDATE。
-CREATE TABLE svc_rulebook.releases (
+CREATE TABLE ${rulebook_schema}.releases (
     id          varchar(26)  PRIMARY KEY,
     domain      varchar(32)  NOT NULL,
     release_tag varchar(64)  NOT NULL,
@@ -167,4 +169,4 @@ CREATE TABLE svc_rulebook.releases (
     created_at  timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_releases_tag UNIQUE (release_tag)
 );
-CREATE INDEX idx_releases_domain ON svc_rulebook.releases (domain);
+CREATE INDEX idx_releases_domain ON ${rulebook_schema}.releases (domain);

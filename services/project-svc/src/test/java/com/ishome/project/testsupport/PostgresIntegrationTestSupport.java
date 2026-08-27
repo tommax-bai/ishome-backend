@@ -12,6 +12,9 @@ public final class PostgresIntegrationTestSupport {
   /** schema-per-service 的测试位：正式 schema svc_project 不被集成测试触碰。 */
   public static final String SCHEMA = "svc_project_it";
 
+  /** V2 的 rulebook 测试位：正式 schema svc_rulebook 同样不被触碰（placeholder 注入）。 */
+  public static final String RULEBOOK_SCHEMA = "svc_rulebook_it";
+
   private PostgresIntegrationTestSupport() {}
 
   /** 注册数据源与 Flyway 属性（坐标经 ISHOME_DB_* 环境变量覆盖，默认本地开发 PG）。 */
@@ -19,9 +22,10 @@ public final class PostgresIntegrationTestSupport {
     registry.add("spring.datasource.url", () -> LocalPostgres.jdbcUrl(SCHEMA));
     registry.add("spring.datasource.username", LocalPostgres::username);
     registry.add("spring.datasource.password", LocalPostgres::password);
-    registry.add("spring.flyway.schemas", () -> SCHEMA);
+    registry.add("spring.flyway.schemas", () -> SCHEMA + "," + RULEBOOK_SCHEMA);
     registry.add("spring.flyway.default-schema", () -> SCHEMA);
     registry.add("spring.flyway.clean-disabled", () -> "false");
+    registry.add("spring.flyway.placeholders.rulebook_schema", () -> RULEBOOK_SCHEMA);
   }
 
   /** clean → migrate：集成测试每个 Spring 上下文从空表起步。 */
