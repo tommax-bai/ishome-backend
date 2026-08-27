@@ -5,15 +5,15 @@ form: rule
 release: null
 
 items:
-  - id: rule-mandatory-lighting-bedroom-dual-control
-    layer: tier-mandatory
+  - id: rule-practice-lighting-bedroom-dual-control
+    layer: tier-practice
     trigger: {type: always}
     content: "卧室主照明双控（门口与床头各一处）"
     rationale: "夜间起身不必摸黑走到门口"
-    severity: mandatory
+    severity: recommended
     point_spec: {type: switch, quantity_min: 2, relative_position: "卧室门内侧与床头两侧"}
     calibration: draft
-    source_pending: "住宅电气设计规范 —— 需取条文号确认是否为强制项；若非强制则降为 tier-practice"
+    source: "GB 50096-2011《住宅设计规范》§8.7 强制条文为 8.7.3/8.7.4/8.7.5/8.7.9（供电系统/回路/保护），双控不在其中——按种子预埋条件降 tier-practice（run-2026-08-27 裁定）"
     consumers: [art-hydro-checklist, art-ceiling-lighting-plan]
 
   - id: rule-practice-lighting-cct-variety-cap
