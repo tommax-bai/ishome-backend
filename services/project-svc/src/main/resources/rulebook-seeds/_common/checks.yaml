@@ -9,12 +9,14 @@ items:
     scope: [正文, 结论句]
     pattern: "可能|建议考虑|也许|宜(?![居])|尽量|视情况"
     message: "分析级结论句禁弱词（规则 5.9）"
+    decided_by: "规范规则 5.9"
 
   - id: cr-methodology-language
     type: regex_deny
     scope: [正文]
     pattern: "依据|推导|验收标准|本方案|经严谨|综合考量"
     message: "方法论元语言外泄（规则 4.15）"
+    decided_by: "规范规则 4.15"
 
   - id: cr-unit-translation
     type: regex_require_annotation
@@ -22,21 +24,25 @@ items:
     pattern: "\\d+\\s?(mm|lx|K|Ra|°|延米|㎡)"
     require: "同句须有生活化括注，或该数字只出现在选型表/图中"
     message: "工程量纲未翻译（规则 2.3）"
+    decided_by: "规范规则 2.3"
 
   - id: cr-no-position-number-on-schematic
     type: field_deny
     scope: [prec-schematic]
     require: "prec-schematic 图纸内不得出现任何定位数字"
     message: "prec-schematic 禁定位数字（规则 2.2）"
+    decided_by: "规范规则 2.2"
 
   - id: cr-assertion-backed
     type: cross_field
     scope: [正文]
     require: "判断句谓词须在该域 persona.assertion_budget 内，且其 requires 的 lkp-* 已求值"
     message: "无计算背书的判断句（规则 5.8）"
+    decided_by: "规范规则 5.8"
 
   - id: cr-draft-not-in-paid
     type: cross_field
     scope: [PAID 产物]
     require: "calibration=draft 的条目不得作判断句背书，只能降档呈现"
     message: "未校准资产进入 PAID 判断句（规则 4.10/4.10a）"
+    decided_by: "规范规则 4.10/4.10a"

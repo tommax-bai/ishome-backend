@@ -15,10 +15,10 @@ ergonomics/         人体工学 persona + parameters(23) + rules(5) + checks(3)
 material/           用材     persona + parameters(3)  + attributes(3) + rules(4) + checks(3)
 storage/            收纳     persona + parameters(6)  + attributes(4) + rules(5) + checks(2)
 softdeco/           色彩软装 persona + parameters(4)  + attributes(2) + rules(3) + checks(4)
-budget/             造价     persona + parameters(4)  + attributes(4) + rules(4) + checks(4)
+budget/             造价     persona + parameters(4)  + attributes(4) + rules(1) + checks(5)
 ```
 
-合计 30 个 YAML、约 690 行；parameter 48 条、rule 26 条、attribute 13 条、check 19 条 + persona 6 份。
+合计 30 个 YAML；parameter 48 条、rule 23 条、attribute 13 条、check 20 条（另 _common 6 条跨域）+ persona 6 份。所有 check 携带 `decided_by`（裁决记录锚）。
 
 ## 编译中产生的两个设计决定（原规范未覆盖，需回写）
 
@@ -29,13 +29,16 @@ budget/             造价     persona + parameters(4)  + attributes(4) + rules(
    四种 schema 完全异构，印证规则 4.12"以 entity_type + JSONB 承载、不按实体类建表"是对的。
    各 `attribute_schema` 草案就在对应 attributes.yaml 里，定稿后移交 contracts。
 
-## 当前状态：几乎全部 draft
+## 当前状态：全部 draft，零 calibrated
 
 按规则 4.10a，`calibrated` 的第一项是 **source 必须能回到原文位置**。本批数值来自行业通行做法与内部规范转写，
-**没有一条接上外部标准原文**，因此绝大多数 `calibration: draft`，只能降档呈现，不得作判断句背书。
+**没有一条接上外部标准原文**，因此全部 `calibration: draft`，只能降档呈现，不得作判断句背书。
 
-唯一 `calibrated` 的是 budget 域三条 `tier-mandatory` **纪律型**条目（只出区间/禁植商品/过期降档）——
-它们的 source 是内部裁决而非外部数据，不需要外部核验。**这划出了一条边界：纪律可以内部定，数值不行。**
+**纪律与知识的边界（规则 4.10b，本批编译中裁决）**：初版曾把造价域三条纪律（只出区间/禁植商品/过期降档）
+误建为 `tier-mandatory` rule 并自标 calibrated——但它们不产出清单条目，不是 rule 形态；其本体是机检，
+且 checks.yaml 中本就有对应项，属重复。已删除。**纪律的唯一存在形式是 check（或锁定文案），不进
+calibration 状态机，正当性锚在 `decided_by`（裁决记录）**。结构性防伪装：check 不携带内容数值，
+数值阈值只能经 `max_from` 等引用 `lkp-*` 参数——该参数照常过可核性门，借"纪律"之名绕核验在结构上不可行。
 
 ## 获取回路第一批目标（规则 4.16，按优先级）
 

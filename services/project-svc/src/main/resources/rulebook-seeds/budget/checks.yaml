@@ -1,12 +1,21 @@
 domain: budget
 form: check
 inherit: _common/checks.yaml
+# check 是纪律的唯一存在形式：不进 calibration 状态机，正当性锚在 decided_by（裁决记录）。
+# check 身上不携带内容数值；数值阈值只能经 max_from/threshold_from 引用 lkp-*（该参数照常过可核性门）。
 items:
   - {id: cr-price-commitment, type: regex_deny, scope: [art-budget-chapter],
-     pattern: "总价|全包价|这个价能做|包工包料|约为\\s*\\d+\\s*万", message: "本章禁精确总价与成交承诺（规则 5.15）"}
+     pattern: "总价|全包价|这个价能做|包工包料|约为\\s*\\d+\\s*万", message: "本章禁精确总价与成交承诺",
+     decided_by: "规范规则 5.15（用户裁决 2026-08-23）"}
   - {id: cr-budget-no-commerce, type: field_deny, scope: [art-budget-chapter],
-     require: "本章不得出现任何商品挂载", message: "监督类产物植入商品（规则 9.2）"}
+     require: "本章不得出现任何商品挂载", message: "监督类产物植入商品",
+     decided_by: "规范规则 9.2（监督/博弈类产物中立性禁令）"}
   - {id: cr-budget-stale-price, type: cross_field, scope: [art-budget-chapter],
-     require: "任一消费的 attr-price-* 若 effective_to 越界，则本章降档为无金额形态", message: "使用过期单价出金额"}
+     require: "任一消费的 attr-price-* 若 effective_to 越界，则本章降档为仅出结构占比、不出金额", message: "使用过期单价出金额",
+     decided_by: "规范规则 5.15（过期单价比没有单价更危险）"}
   - {id: cr-budget-range-width, type: cross_field, scope: [art-budget-chapter],
-     require: "区间宽度须与该条 confidence 匹配（lkp-budget-confidence-width）", message: "低置信数据给了窄区间"}
+     require: "区间宽度须与该条 confidence 匹配（lkp-budget-confidence-width）", message: "低置信数据给了窄区间",
+     decided_by: "规范规则 5.15（区间宽度随置信调整，用户裁决 2026-08-23）"}
+  - {id: cr-budget-disclaimer, type: presence_require, scope: [art-budget-chapter],
+     require: "DISCLAIM_PRICE 锁定文案必挂（gen-locked，引用文案 ID）", message: "造价章缺 DISCLAIM_PRICE",
+     decided_by: "规范规则 5.15"}
