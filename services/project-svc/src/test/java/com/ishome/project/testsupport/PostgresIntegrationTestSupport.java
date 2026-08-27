@@ -26,6 +26,7 @@ public final class PostgresIntegrationTestSupport {
     registry.add("spring.flyway.default-schema", () -> SCHEMA);
     registry.add("spring.flyway.clean-disabled", () -> "false");
     registry.add("spring.flyway.placeholders.rulebook_schema", () -> RULEBOOK_SCHEMA);
+    registry.add("mybatis-plus.configuration-properties.rulebookSchema", () -> RULEBOOK_SCHEMA);
   }
 
   /** clean → migrate：集成测试每个 Spring 上下文从空表起步。 */
