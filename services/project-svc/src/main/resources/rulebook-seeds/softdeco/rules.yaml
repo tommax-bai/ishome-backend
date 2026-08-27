@@ -1,0 +1,13 @@
+domain: softdeco
+form: rule
+release: null
+items:
+  - {id: rule-personal-softdeco-blackout-by-orientation, layer: tier-personal, trigger: {type: layout_feature, layout_feature: bedroom_east_facing},
+     content: "主卧窗帘按全遮光选型", rationale: "东向卧室夏季日出即亮", severity: recommended, calibration: draft,
+     consumers: [art-color-soft-chapter, art-purchase-checklist]}
+  - {id: rule-personal-softdeco-projector-blackout, layer: tier-personal, trigger: {type: answer, question_id: Q-ENTERTAIN, answer_match: [projector]},
+     content: "投影墙面避开跳色，幕布位预埋 + 该空间全遮光", rationale: "墙色会吃掉投影对比度", severity: recommended, calibration: draft,
+     consumers: [art-color-soft-chapter, art-hydro-checklist]}
+  - {id: rule-personal-softdeco-pet-fabric, layer: tier-personal, trigger: {type: answer, question_id: Q-PET, answer_match: [cat]},
+     content: "沙发与窗帘布料限定耐抓类（规格词回写货架）", rationale: "普通绒面会被抽丝", severity: recommended, calibration: draft,
+     consumers: [art-purchase-checklist]}

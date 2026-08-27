@@ -1,0 +1,10 @@
+domain: material
+form: check
+inherit: _common/checks.yaml
+items:
+  - {id: cr-material-spec-word, type: pattern_require, scope: [art-material-chapter, art-purchase-checklist],
+     require: "材质词须为规格化形态：品类+风格+材质规格+颜色+尺寸（规则 5.10）", message: "材质词未规格化"}
+  - {id: cr-material-aging-downgrade, type: cross_field, scope: [art-material-chapter],
+     require: "aging_2y 属性恒为经验条目，只能以参考形态出现，禁作判断句（规则 4.10a）", message: "经验条目被用作判断句"}
+  - {id: cr-material-variety, type: count_max, scope: [art-material-chapter], field: 主材种类, max_from: lkp-material-variety-max,
+     message: "全屋主材种类超上限"}

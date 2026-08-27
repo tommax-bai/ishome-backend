@@ -1,0 +1,24 @@
+# attribute 形态 · 材质属性卡
+# 存储形态：attributes 表 entity_type + JSONB 属性包（规则 4.12），不按实体类建表
+# ★ 这是图第 3 节点名的"材质属性表"——全部条目待外部指标接入，现为结构占位
+domain: material
+form: attribute
+entity_type: material
+release: null
+attribute_schema:      # 该 entity_type 的属性 JSONSchema 草案（定稿后入 contracts）
+  abrasion: {type: string, desc: 耐磨等级或转数, source_required: true}
+  stain_resistance: {type: string, desc: 耐污}
+  moisture: {type: string, desc: 防潮}
+  care_cycle: {type: string, desc: 保养周期}
+  eco_grade: {type: string, desc: 环保等级}
+  aging_2y: {type: string, desc: "两年后的样子（★经验条目，恒 draft，只能降档呈现）"}
+items:
+  - {id: attr-material-oak-open-lacquer, name: 白橡开放漆, entity_type: material, calibration: draft,
+     props: {care_cycle: "木纹缝易存油污，需定期清理", eco_grade: null, aging_2y: null},
+     source_pending: "厂商公开参数 + 涂装工艺标准，≥2 源交叉验证"}
+  - {id: attr-material-sintered-stone, name: 哑光岩板, entity_type: material, calibration: draft,
+     props: {abrasion: null, stain_resistance: null, moisture: null},
+     source_pending: "岩板检测指标标准 —— 需定标准号"}
+  - {id: attr-material-cat-proof-fabric, name: 猫抓布, entity_type: material, calibration: draft,
+     props: {abrasion: "马丁代尔转数待取", care_cycle: null},
+     source_pending: "纺织品耐磨（马丁代尔）与色牢度标准 —— 需定标准号 + 厂商参数"}

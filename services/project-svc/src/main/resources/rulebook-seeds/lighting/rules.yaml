@@ -1,0 +1,58 @@
+# rule 形态 · 照明域（三层三触发，规范 §4.1/§4.2）
+# 注意：rule id 按规则 1.7 语义命名，不再用 "L3-PET-002" 式序号
+domain: lighting
+form: rule
+release: null
+
+items:
+  - id: rule-mandatory-lighting-bedroom-dual-control
+    layer: tier-mandatory
+    trigger: {type: always}
+    content: "卧室主照明双控（门口与床头各一处）"
+    rationale: "夜间起身不必摸黑走到门口"
+    severity: mandatory
+    point_spec: {type: switch, quantity_min: 2, relative_position: "卧室门内侧与床头两侧"}
+    calibration: draft
+    source_pending: "住宅电气设计规范 —— 需取条文号确认是否为强制项；若非强制则降为 tier-practice"
+    consumers: [art-hydro-checklist, art-ceiling-lighting-plan]
+
+  - id: rule-practice-lighting-cct-variety-cap
+    layer: tier-practice
+    trigger: {type: always}
+    content: "全屋色温种类不超过 3 种"
+    rationale: "色温杂乱是家里显廉价的第一来源"
+    severity: recommended
+    calibration: draft
+    source: "内部规范 §5.1（经验条目）"
+    consumers: [art-lighting-chapter, cr-cct-variety]
+
+  - id: rule-practice-lighting-bedhead-no-direct
+    layer: tier-practice
+    trigger: {type: always}
+    content: "床头区域禁止筒灯直射"
+    rationale: "躺下时正对光源，眼睛难受"
+    severity: recommended
+    calibration: draft
+    source: "内部规范 §5.1（经验条目）"
+    consumers: [art-ceiling-lighting-plan, art-purchase-checklist]
+
+  - id: rule-personal-lighting-elder-night-path
+    layer: tier-personal
+    trigger: {type: answer, question_id: Q-FAMILY, answer_match: [elder_living]}
+    content: "卧室到卫生间沿途布夜灯动线（2700K，地脚高度）"
+    rationale: "老人夜起频次高，全亮会彻底醒，摸黑有跌倒风险"
+    severity: recommended
+    point_spec: {type: light, quantity_min: 2, relative_position: "卧室门外墙脚至卫生间门口"}
+    calibration: draft
+    source: "内部规范 §5.1（经验条目）"
+    consumers: [art-ceiling-lighting-plan, art-hydro-checklist, art-purchase-checklist]
+
+  - id: rule-personal-lighting-reading-accent
+    layer: tier-personal
+    trigger: {type: answer, question_id: Q-HABIT, answer_match: [reading]}
+    content: "沙发阅读位设重点照明（照度=环境 3-5 倍）"
+    rationale: "在沙发上看书，屋里的主灯不够用"
+    severity: recommended
+    calibration: draft
+    source: "内部规范 §5.1"
+    consumers: [art-lighting-chapter, art-purchase-checklist]

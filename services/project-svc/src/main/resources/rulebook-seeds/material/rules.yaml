@@ -1,0 +1,14 @@
+domain: material
+form: rule
+release: null
+items:
+  - {id: rule-practice-material-open-lacquer-not-in-grease, layer: tier-practice, trigger: {type: always},
+     content: "油烟区柜门禁开放漆", rationale: "木纹缝存油，擦不出来", severity: recommended, calibration: draft,
+     source: "内部规范 §5.6（经验条目）", consumers: [art-material-chapter, art-purchase-checklist]}
+  - {id: rule-practice-material-changhong-glass-not-in-bath, layer: tier-practice, trigger: {type: always},
+     content: "卫浴隔断禁长虹玻璃", rationale: "透光不透形只在远处成立，近距离仍有轮廓", severity: recommended, calibration: draft}
+  - {id: rule-practice-material-glossy-stone-west-sun, layer: tier-practice, trigger: {type: layout_feature, layout_feature: west_facing},
+     content: "西晒空间禁亮面岩板大面积上墙", rationale: "下午反光刺眼", severity: recommended, calibration: draft}
+  - {id: rule-personal-material-low-maintenance, layer: tier-personal, trigger: {type: answer, question_id: Q-MAINTAIN, answer_match: [low_effort]},
+     content: "主材按易打理权重重排推荐序", rationale: "你说过不想费心保养", severity: recommended, calibration: draft,
+     consumers: [art-material-chapter, art-purchase-checklist]}

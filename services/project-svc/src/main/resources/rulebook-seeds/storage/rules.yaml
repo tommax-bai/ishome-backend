@@ -1,0 +1,16 @@
+domain: storage
+form: rule
+release: null
+items:
+  - {id: rule-practice-storage-entry-parcel, layer: tier-practice, trigger: {type: always},
+     content: "玄关设快递拆包位（台面或翻板）", rationale: "拆包在门口完成，纸箱不进屋", severity: recommended, calibration: draft}
+  - {id: rule-practice-storage-balcony-cleaning, layer: tier-practice, trigger: {type: layout_feature, layout_feature: balcony_service},
+     content: "阳台留清洁工具位（含插座）", rationale: "吸尘器和拖把要有固定的家，还要能充电", severity: recommended, calibration: draft,
+     consumers: [art-storage-chapter, art-hydro-checklist]}
+  - {id: rule-personal-storage-child-growth-margin, layer: tier-personal, trigger: {type: answer, question_id: Q-FAMILY, answer_match: [child_toddler, child_school]},
+     content: "儿童房柜体预留成长冗余（可调层板 + 挂杆高度可变）", rationale: "衣服三年换一批长度", severity: recommended, calibration: draft}
+  - {id: rule-personal-storage-bulk-buying, layer: tier-personal, trigger: {type: answer, question_id: Q-STORAGE, answer_match: [bulk_buying]},
+     content: "增设囤货仓（阳台或次卧柜下段，承重层板）", rationale: "你说过习惯囤货", severity: recommended, calibration: draft}
+  - {id: rule-personal-storage-robot-dock, layer: tier-personal, trigger: {type: answer, question_id: Q-CLEAN-ROBOT, answer_match: [yes]},
+     content: "基站位预留插座与给排水（自动集尘/自清洁型）", rationale: "基站不能占通道，且必须有电", severity: mandatory, calibration: draft,
+     consumers: [art-hydro-checklist, art-storage-chapter]}

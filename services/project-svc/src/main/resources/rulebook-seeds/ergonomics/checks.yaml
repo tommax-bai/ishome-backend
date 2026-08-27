@@ -1,0 +1,12 @@
+domain: ergonomics
+form: check
+inherit: _common/checks.yaml
+items:
+  - {id: cr-ergo-passage-pass, type: threshold_all, scope: [art-plan-final],
+     require: "12 项通道校核逐项与 lkp-* 比对；未过项置顶并在 art-plan-final 标注位置（规则 5.4）",
+     message: "人体工学校核未过项未置顶"}
+  - {id: cr-ergo-size-table-expanded, type: presentation, scope: [art-ergonomics-chapter],
+     require: "定制尺寸表恒展开，不得折叠——它是表达件不是校核结论（规则 5.4）",
+     message: "定制尺寸表被折叠"}
+  - {id: cr-ergo-size-source, type: cross_field, scope: [art-ergonomics-chapter],
+     require: "每项定制尺寸须带 source（parameter 形态）", message: "定制尺寸缺 source"}

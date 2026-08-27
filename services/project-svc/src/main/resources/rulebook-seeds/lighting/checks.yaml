@@ -1,0 +1,12 @@
+domain: lighting
+form: check
+inherit: _common/checks.yaml
+items:
+  - {id: cr-cct-variety, type: count_max, scope: [art-lighting-chapter], field: 色温种类, max_from: lkp-cct-variety-max,
+     message: "全屋色温种类超过上限"}
+  - {id: cr-lighting-no-number-on-plan, type: field_deny, scope: [art-ceiling-lighting-plan],
+     require: "灯位图内不得出现安装高度、间距等定位数字，符号旁仅标条目编号（规则 3.3）",
+     message: "prec-schematic 灯位图出现定位数字"}
+  - {id: cr-lighting-scene-modes, type: presentation, scope: [art-lighting-chapter],
+     require: "场景模式须给回路分组示意（会客/观影/夜起三模式），不出参数表（规则 5.1）",
+     message: "场景模式缺回路分组或混入参数表"}

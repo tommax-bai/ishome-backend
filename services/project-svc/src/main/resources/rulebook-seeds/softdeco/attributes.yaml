@@ -1,0 +1,12 @@
+# attribute 形态 · 色板卡
+domain: softdeco
+form: attribute
+entity_type: color
+release: null
+attribute_schema: {hex: {type: string}, warm_cool: {type: string}, lightness: {type: number},
+  pairs_with: {type: array}, render_consistency: {type: string, desc: "与 art-space-render 取色一致性锚（规则 5.14）"}}
+items:
+  - {id: attr-color-warm-white, name: 暖白, calibration: draft, props: {hex: null, warm_cool: warm, lightness: null},
+     source_pending: "色卡体系（NCS/RAL 或自有色板）—— 需先定色彩命名体系（vocabulary 形态）"}
+  - {id: attr-color-oak-natural, name: 原木色, calibration: draft, props: {warm_cool: warm},
+     source_pending: "与材质域 attr-material-* 的色值对齐，避免两套色名"}

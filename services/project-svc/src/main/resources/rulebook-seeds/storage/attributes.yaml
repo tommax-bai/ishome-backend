@@ -1,0 +1,12 @@
+# attribute 形态 · 收纳物品尺寸库
+domain: storage
+form: attribute
+entity_type: storage_item
+release: null
+attribute_schema: {w: {type: number, unit: mm}, d: {type: number, unit: mm}, h: {type: number, unit: mm},
+  qty_per_family: {type: string, desc: "家庭结构对应件数（来自 Q-STORAGE 盘点回流）"}}
+items:
+  - {id: attr-item-suitcase-28, name: 28寸行李箱, calibration: draft, props: {w: 500, d: 320, h: 780}, source_pending: "厂商公开外廓尺寸 ≥2 源"}
+  - {id: attr-item-quilt-winter, name: 冬季被芯（收纳后）, calibration: draft, props: {w: 600, d: 400, h: 300}, source_pending: "常见收纳袋规格"}
+  - {id: attr-item-vacuum-stick, name: 立式吸尘器, calibration: draft, props: {w: 250, d: 250, h: 1200}, source_pending: "厂商公开尺寸"}
+  - {id: attr-item-robot-dock, name: 扫地机基站, calibration: draft, props: {w: 400, d: 450, h: 600}, source_pending: "厂商公开尺寸，需带插座位联动"}

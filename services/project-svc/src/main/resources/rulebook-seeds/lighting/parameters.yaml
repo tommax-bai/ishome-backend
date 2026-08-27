@@ -1,0 +1,79 @@
+# parameter 形态 · 照明域
+# 治理头：规则 4.10；可核性门：规则 4.10a（calibrated 只能由机检核验取得）
+# 现状：全部 draft —— 数值来自行业通行做法与内部规范，尚未接外部标准原文（获取回路，规则 4.16）
+domain: lighting
+form: parameter
+release: null            # 未发布；calibrated 条目齐备后方可 cut release
+
+items:
+  - id: lkp-accent-ratio
+    name: 重点照明照度倍数
+    number_class: analysis          # 数字三分法：分析数字（规则 2.3）
+    value: {min: 3, max: 5, unit: "×环境照度"}
+    formula: "重点照度 = 环境照度 × [3,5]"
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "GB 50034《建筑照明设计标准》住宅部分照度标准值 —— 需取原文条文号与表号"
+    consumers: [art-lighting-chapter, art-purchase-checklist]
+
+  - id: lkp-cct-living
+    name: 起居与卧室色温
+    number_class: selection         # 选型数字：可上清单，禁上 prec-schematic 图
+    value: {v: 3000, unit: K}
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "厂商公开参数交叉验证（≥2 源，规则 4.16）"
+    consumers: [art-lighting-chapter, art-purchase-checklist]
+
+  - id: lkp-cct-task
+    name: 操作台与镜前色温
+    number_class: selection
+    value: {v: 4000, unit: K}
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "厂商公开参数交叉验证"
+    consumers: [art-lighting-chapter, art-purchase-checklist]
+
+  - id: lkp-cct-night
+    name: 夜灯动线色温
+    number_class: selection
+    value: {v: 2700, unit: K}
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "厂商公开参数交叉验证"
+    consumers: [art-lighting-chapter, art-purchase-checklist]
+
+  - id: lkp-cct-variety-max
+    name: 全屋色温种类上限
+    number_class: analysis
+    value: {max: 3, unit: "种"}
+    calibration: draft
+    source: "内部规范 §5.1（经验条目，无外部真源）"
+    consumers: [art-lighting-chapter, cr-cct-variety]
+
+  - id: lkp-cri-living
+    name: 起居空间显色指数下限
+    number_class: selection
+    value: {min: 90, unit: Ra}
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "GB/T 显色性评价方法 + 厂商参数交叉验证"
+    consumers: [art-purchase-checklist]
+
+  - id: lkp-beam-accent
+    name: 重点照明光束角
+    number_class: selection
+    value: {min: 15, max: 24, unit: "°"}
+    calibration: draft
+    source: "行业通行；内部规范 §5.1"
+    source_pending: "厂商公开参数交叉验证"
+    consumers: [art-purchase-checklist]
+
+  - id: lkp-pendant-drop-dining
+    name: 餐桌吊灯下沿距桌面
+    number_class: selection
+    value: {min: 700, max: 800, unit: mm}
+    calibration: draft
+    source: "行业通行"
+    source_pending: "人因工程数据源 —— 需定源"
+    consumers: [art-purchase-checklist]

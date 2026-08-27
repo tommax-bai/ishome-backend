@@ -1,0 +1,13 @@
+domain: softdeco
+form: parameter
+release: null
+default_calibration: draft
+items:
+  - {id: lkp-color-ratio, name: 主辅点缀配色比例, number_class: analysis, value: {main: 0.6, secondary: 0.3, accent: 0.1},
+     source: "行业通行（60-30-10）", source_pending: "无外部标准，属经验条目"}
+  - {id: lkp-color-main-max, name: 全屋主色数量上限, number_class: analysis, value: {max: 3}, unit: 种,
+     source: "内部规范 §5.8（经验条目）"}
+  - {id: lkp-blackout-rate, name: 卧室窗帘遮光率, number_class: selection, value: {min: 0.9}, unit: 比率,
+     trigger_note: "朝向触发：东向/南向主卧取上限", source_pending: "遮光率检测方法标准 + 厂商参数 ≥2 源"}
+  - {id: lkp-rug-size-rule, name: 地毯尺寸规则, number_class: selection,
+     formula: "沙发前沿外扩 [200,300]mm，短边不小于沙发长度", unit: mm, linked: [ergonomics/lkp-sofa-table-gap]}

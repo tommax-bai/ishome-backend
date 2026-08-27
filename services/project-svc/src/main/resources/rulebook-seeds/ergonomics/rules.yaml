@@ -1,0 +1,17 @@
+domain: ergonomics
+form: rule
+release: null
+items:
+  - {id: rule-personal-ergo-elder-grab-bar, layer: tier-personal, trigger: {type: answer, question_id: Q-FAMILY, answer_match: [elder_living]},
+     content: "卫生间马桶侧与淋浴区预埋扶手基层", rationale: "老人起身借力点；基层不预埋，后期只能打膨胀螺栓", severity: recommended,
+     calibration: draft, consumers: [art-hydro-checklist, art-ergonomics-chapter]}
+  - {id: rule-personal-ergo-child-socket-guard, layer: tier-personal, trigger: {type: answer, question_id: Q-FAMILY, answer_match: [child_toddler]},
+     content: "常用高度插座全部带保护门", rationale: "攀爬期孩子够得到的高度", severity: mandatory,
+     calibration: draft, source_pending: "住宅电气规范 —— 确认是否强制", consumers: [art-hydro-checklist]}
+  - {id: rule-personal-ergo-child-corner, layer: tier-personal, trigger: {type: answer, question_id: Q-FAMILY, answer_match: [child_toddler]},
+     content: "儿童活动区家具与台面转角做圆角", rationale: "跑动碰撞", severity: recommended, calibration: draft}
+  - {id: rule-practice-ergo-dual-cook-width, layer: tier-practice, trigger: {type: layout_feature, layout_feature: kitchen_u_shape},
+     content: "两人同时下厨时，U型两排间距取上限区间", rationale: "一个人弯腰开柜、另一个人能过", severity: recommended,
+     calibration: draft, consumers: [art-ergonomics-chapter]}
+  - {id: rule-personal-ergo-pet-flow, layer: tier-personal, trigger: {type: answer, question_id: Q-PET, answer_match: [cat, dog]},
+     content: "宠物动线避开主通道最窄段，食盆位不占通道净宽", rationale: "主通道被占用后实际净宽不达标", severity: recommended, calibration: draft}

@@ -1,0 +1,17 @@
+domain: budget
+form: rule
+release: null
+items:
+  - {id: rule-mandatory-budget-range-only, layer: tier-mandatory, trigger: {type: always},
+     content: "全章只出区间，禁精确总价与成交承诺；DISCLAIM_PRICE 必挂", rationale: "本章价值即中立性",
+     severity: mandatory, calibration: calibrated, source: "内部裁决（规则 5.15，纪律型条目，非外部数据）",
+     consumers: [art-budget-chapter, machine-check]}
+  - {id: rule-mandatory-budget-no-commerce, layer: tier-mandatory, trigger: {type: always},
+     content: "本章禁植入任何商品", rationale: "监督/博弈类产物中立性禁令（规则 9.2）",
+     severity: mandatory, calibration: calibrated, source: "内部裁决（规则 9.2）"}
+  - {id: rule-mandatory-budget-stale-downgrade, layer: tier-mandatory, trigger: {type: always},
+     content: "单价库 effective_to 越界时，本章自动降档为仅出结构占比、不出金额", rationale: "过期单价比没有单价更危险",
+     severity: mandatory, calibration: calibrated, source: "内部裁决（规则 5.15）", consumers: [art-budget-chapter]}
+  - {id: rule-practice-budget-hidden-item-warning, layer: tier-practice, trigger: {type: always},
+     content: "列常见低报高增项（联动 art-quotation-checklist）", rationale: "签约时报低、施工中增项是最常见的博弈点",
+     severity: recommended, calibration: draft, consumers: [art-budget-chapter, art-quotation-checklist]}

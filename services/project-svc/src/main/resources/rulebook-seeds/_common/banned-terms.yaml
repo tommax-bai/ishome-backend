@@ -1,0 +1,7 @@
+# 跨域禁词表（persona.banned_terms 的公共部分，各域可加 domain_extra）
+scope: cross-domain
+form: vocabulary
+weak:        ["可能", "建议考虑", "也许", "宜", "尽量", "视情况"]
+methodology: ["依据", "推导", "验收标准", "本方案", "经严谨", "综合考量", "作业范围"]
+overreach:   ["保证", "确保效果", "一定不会", "承诺", "无风险"]
+responsibility: ["责任", "免责", "由业主自行承担"]   # 责任视角话术，V1.3 红线

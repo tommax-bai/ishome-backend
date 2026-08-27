@@ -1,0 +1,8 @@
+domain: storage
+form: check
+inherit: _common/checks.yaml
+items:
+  - {id: cr-storage-verdict-first, type: presentation, scope: [art-storage-chapter],
+     require: "容量账须先给'够/不够'判断句，再列明细（规则 5.13）", message: "收纳容量账未先给判断"}
+  - {id: cr-storage-baseline-draft, type: cross_field, scope: [art-storage-chapter],
+     require: "lkp-storage-density-baseline 为 draft，结论须降档为区间表述，禁绝对判断", message: "以未校准基准下绝对判断"}

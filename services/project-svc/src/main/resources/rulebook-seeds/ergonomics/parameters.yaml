@@ -1,0 +1,35 @@
+# parameter 形态 · 人体工学域（本域参数密度最高：定制尺寸族 + 12 项通道校核）
+domain: ergonomics
+form: parameter
+release: null
+default_calibration: draft
+default_source: "行业通行做法 + 内部规范 §5.2 转写"
+default_source_pending: "人因工程数据源与住宅设计规范 —— 需定源并取原文（获取回路，规则 4.16）"
+
+items:
+  # —— 定制尺寸族（选型数字，给定制商的表达件）——
+  - {id: lkp-counter-height, name: 橱柜台面高, number_class: selection, formula: "主厨身高/2 + [50,100]", unit: mm, consumers: [art-ergonomics-chapter, art-purchase-checklist]}
+  - {id: lkp-wall-cabinet-bottom, name: 吊柜底沿距台面, number_class: selection, value: {min: 600, max: 700}, unit: mm}
+  - {id: lkp-sink-depth, name: 水槽深度, number_class: selection, value: {min: 180, max: 220}, unit: mm}
+  - {id: lkp-desk-height, name: 书桌高, number_class: selection, value: {v: 720}, unit: mm, linked: lkp-chair-height}
+  - {id: lkp-chair-height, name: 座椅高, number_class: selection, value: {v: 450}, unit: mm}
+  - {id: lkp-bed-height, name: 床面高, number_class: selection, value: {min: 450, max: 500}, unit: mm}
+  - {id: lkp-wardrobe-rod, name: 衣柜挂杆高, number_class: selection, formula: "身高 × 1.2", unit: mm}
+  - {id: lkp-switch-height, name: 开关高, number_class: selection, value: {v: 1300}, unit: mm}
+  - {id: lkp-socket-height-common, name: 常用插座高, number_class: selection, value: {v: 300}, unit: mm}
+  - {id: lkp-mirror-height, name: 镜面中心高, number_class: selection, formula: "使用者眼高", unit: mm}
+
+  # —— 通道与操作校核（分析数字，12 项）——
+  - {id: lkp-passage-main, name: 主通道净宽, number_class: analysis, value: {min: 900}, unit: mm}
+  - {id: lkp-passage-secondary, name: 次通道净宽, number_class: analysis, value: {min: 750}, unit: mm}
+  - {id: lkp-sofa-table-gap, name: 沙发至茶几间距, number_class: analysis, value: {min: 350, max: 450}, unit: mm}
+  - {id: lkp-dining-pullback, name: 餐桌就座侧退让, number_class: analysis, value: {min: 900}, unit: mm}
+  - {id: lkp-bed-side, name: 床侧净距, number_class: analysis, value: {min: 750}, unit: mm}
+  - {id: lkp-wardrobe-front, name: 平开门衣柜前净距, number_class: analysis, value: {min: 900}, unit: mm, variant: {移门: 600}}
+  - {id: lkp-kitchen-u-gap, name: U型厨房两排间距, number_class: analysis, value: {min: 900, max: 1200}, unit: mm}
+  - {id: lkp-toilet-center-offset, name: 马桶中线距侧墙, number_class: analysis, value: {min: 350}, unit: mm}
+  - {id: lkp-shower-clear, name: 淋浴房内空, number_class: analysis, value: {min_w: 800, min_d: 800}, unit: mm}
+  - {id: lkp-tv-distance, name: 电视观看距离, number_class: analysis, formula: "屏高 × [3,4]"}
+  - {id: lkp-entry-cabinet-depth, name: 玄关柜深, number_class: analysis, value: {min: 350}, unit: mm}
+  - {id: lkp-fridge-vent, name: 冰箱散热净距, number_class: analysis, value: {min: 50}, unit: mm}
+  - {id: lkp-work-triangle, name: 厨房工作三角周长, number_class: analysis, value: {min: 3.6, max: 6.6}, unit: m}

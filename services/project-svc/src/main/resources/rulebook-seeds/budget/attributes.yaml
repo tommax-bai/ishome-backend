@@ -1,0 +1,22 @@
+# attribute 形态 · 工项单价库（时效资产，effective 必填 —— 规则 4.10）
+# 数据源裁决（用户 2026-08-23）：公开数据起步，置信按 source 分级
+domain: budget
+form: attribute
+entity_type: work_item
+release: null
+attribute_schema:
+  unit: {type: string, desc: "㎡ / 延米 / 点位 / 项"}
+  price_range: {type: array, desc: "[low, high]"}
+  city_tier: {type: string, desc: 城市档}
+  confidence: {type: string, enum: [high, medium, low], desc: "决定区间宽度，见 lkp-budget-confidence-width"}
+  effective_from: {type: date, required: true}
+  effective_to: {type: date, required: true}
+items:
+  - {id: attr-price-demolition, name: 拆除, calibration: draft, props: {unit: ㎡, price_range: null, city_tier: null, confidence: null},
+     source_pending: "各地建设工程信息价 + 公开装修行情，≥2 源"}
+  - {id: attr-price-electrical-point, name: 电路点位, calibration: draft, props: {unit: 点位, price_range: null},
+     source_pending: "公开装修报价行情，≥2 源"}
+  - {id: attr-price-custom-cabinet, name: 定制柜（投影延米）, calibration: draft, props: {unit: 延米, price_range: null},
+     source_pending: "电商主材公开价 + 公开行情，≥2 源；★ 本项是总价主驱动，优先级最高"}
+  - {id: attr-price-wall-paint, name: 墙面涂刷, calibration: draft, props: {unit: ㎡, price_range: null},
+     source_pending: "公开行情 + 主材电商公开价"}
