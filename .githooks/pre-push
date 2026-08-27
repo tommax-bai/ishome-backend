@@ -12,4 +12,8 @@ echo "== pre-push: gradlew build (compile + checkstyle + pmd + spotless + archun
 ./gradlew build
 echo "== pre-push: channel literal whitelist"
 ./scripts/check-channel-literals.sh
+if command -v uv >/dev/null 2>&1; then
+  echo "== pre-push: rulebook 种子核验跑批（规则 4.10a/4.10b）"
+  ./scripts/rulebook/verify_seeds.py >/dev/null || { ./scripts/rulebook/verify_seeds.py; exit 1; }
+fi
 echo "== pre-push: OK"

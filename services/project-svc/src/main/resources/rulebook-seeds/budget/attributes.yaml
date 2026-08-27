@@ -29,8 +29,8 @@ items:
     calibration: draft
     props: {unit: 点位, price_range: [150, 500], city_tier: 全国粗档, confidence: low,
             effective_from: 2026-08-27, effective_to: 2026-11-27}
-    source: "搜狐/装信通行情（每点位 150-300 元；100㎡ 约 50-70 位）"
-    source_2: "设计本/齐家问问（每位 200-500 元）"
+    source: "m.sohu.com/a/1025834698_122469136 与 zx123.cn/2021/1220/2353557（每点位 150-300 元；100㎡ 约 50-70 位）"
+    source_2: "m.shejiben.com/ask/wenda/143518 与 m.jia.com/wenda/a-476738（每位 200-500 元）"
     note: "两源重叠区 200-300；区间取并集、置信 low。另一计价口径：按面积 90-120 元/㎡ 全屋"
 
   - id: attr-price-custom-cabinet

@@ -9,7 +9,8 @@ spring:
     username: ${ISHOME_DB_USER:ishome}
     password: ${ISHOME_DB_PASSWORD:ishome-local-dev}
   flyway:
-    schemas: svc_project
+    # svc_rulebook：知识资产库（规范 v2.2 规则 4.12，规则引擎模块持有，schema 独立可拆走）
+    schemas: svc_project,svc_rulebook
     default-schema: svc_project
     enabled: true
 
