@@ -16,6 +16,18 @@ items:
   - {id: cr-budget-range-width, type: cross_field, scope: [art-budget-chapter],
      require: "区间宽度须与该条 confidence 匹配（lkp-budget-confidence-width）", message: "低置信数据给了窄区间",
      decided_by: "规范规则 5.15（区间宽度随置信调整，用户裁决 2026-08-23）"}
-  - {id: cr-budget-disclaimer, type: presence_require, scope: [art-budget-chapter],
+  # scope 从卡片级上移到**册级**（图 v0.2 §4 三作用域第三档，位置=渲染前；2026-08-28 改）。依据三条：
+  #   ① **形态判据**：本条是 presence_require——"产物里必须有 DISCLAIM_PRICE 锁定文案"，约束的是装配
+  #      结果有没有这件东西，不是某张卡片怎么写。装配是页/册级的活（图 v0.2 §2：页面装配是唯一知道
+  #      "页"的节点），判据该落在看得见整册产物的那一层。
+  #   ② **规则 2.4**：DISCLAIM_PRICE 是 gen-locked（引用锁定文案 ID 直接渲染，零生成），**写作层本就
+  #      不该产出它**。挂在卡片级等于要求写手写一句它没有权限写的话——判据挂错层，要么写手怎么写都
+  #      过不了，要么（现状）根本没人执行。
+  #   ③ **真跑实证**：自迭代回路首采 §五-3——r12 那张 verdict=ok 的造价卡片**没有挂 DISCLAIM_PRICE**，
+  #      规则 5.15"必挂"在成文线上零拦截。挂错层就是零拦截的原因：单元级出口既看不见册，Card 模型
+  #      也没有可挂免责文案的字段。册级（渲染前）是最后一个能停下来、也是唯一看得见整册的地方。
+  # 保留 art-budget-chapter：作用域上移改的是"在哪一层判"，不改"判哪个产物"。
+  # 只改 scope 与本注释；decided_by 不动——纪律本体未变，仍锚规则 5.15（挂错层是落位问题，不是裁决变更）。
+  - {id: cr-budget-disclaimer, type: presence_require, scope: [册级, art-budget-chapter],
      require: "DISCLAIM_PRICE 锁定文案必挂（gen-locked，引用文案 ID）", message: "造价章缺 DISCLAIM_PRICE",
      decided_by: "规范规则 5.15"}
