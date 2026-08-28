@@ -85,7 +85,14 @@ class RulebookEvaluationIntegrationTest {
            "value":{"min":900},"formula":null,"unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-tv-distance","name":"电视观看距离","number_class":"analysis",
            "value":null,"formula":"屏高 × [3,4]","unit":null,"calibration":"draft","source":"行业通行","version":1}],
-          "personas":[{"asset_id":"persona-ergonomics","version":1}]}}
+          "personas":[{"asset_id":"persona-ergonomics","identity":"你在为这一家人校核尺寸。",
+           "judgment_samples":[],"assertion_budget":[{"predicate":"通道净宽","requires":["lkp-passage-main"]}],
+           "banned_terms":{"domain_extra":["人体工学"]},"version":1}],
+          "checks":[{"asset_id":"cr-weak-words","check_type":"regex_deny","scope":["正文"],
+           "pattern":"可能|建议考虑|也许","requirement":null,"message":"分析级结论禁弱词（规则 5.9）",
+           "decided_by":"规范规则 5.9","threshold_refs":[],"version":1}],
+          "vocabularies":[{"asset_id":"vocab-banned-methodology","kind":"banned_term",
+           "terms":{"methodology":["依据","综合考量"]},"version":1}]}}
         """);
     insertRelease(
         "budget",
@@ -134,6 +141,12 @@ class RulebookEvaluationIntegrationTest {
     assertEquals(
         List.of("persona-ergonomics"),
         pkg.personasByDomain().get("ergonomics").stream().map(p -> p.assetId()).toList());
+    // 自包含载荷（图 v0.2 §0：成文线不回查任何库）——persona 全文、cr- 判据、禁词随包
+    assertEquals("你在为这一家人校核尺寸。", pkg.personasByDomain().get("ergonomics").get(0).identity());
+    assertEquals(
+        List.of("cr-weak-words"),
+        pkg.checksByDomain().get("ergonomics").stream().map(c -> c.assetId()).toList());
+    assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
   }
 
   /** 图 v0.2 §8 首批验证第一件事：同输入重复求值，序列化字节级同输出（规则 8.2 可重放）。 */

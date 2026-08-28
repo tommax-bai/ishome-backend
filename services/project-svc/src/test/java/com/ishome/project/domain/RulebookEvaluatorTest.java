@@ -4,10 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.ishome.project.domain.rulebook.CheckAsset;
 import com.ishome.project.domain.rulebook.EvaluationInput;
 import com.ishome.project.domain.rulebook.GapRecord;
 import com.ishome.project.domain.rulebook.ParameterAsset;
-import com.ishome.project.domain.rulebook.PersonaAssetRef;
+import com.ishome.project.domain.rulebook.PersonaAsset;
 import com.ishome.project.domain.rulebook.ReleaseSnapshot;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
@@ -26,6 +27,27 @@ class RulebookEvaluatorTest {
     return new ParameterAsset(id, name, "analysis", value, formula, "mm", calibration, "测试源", 1);
   }
 
+  private static final PersonaAsset PERSONA =
+      new PersonaAsset(
+          "persona-ergonomics",
+          "你在为这一家人校核他们家的尺寸。",
+          List.of(),
+          List.of(Map.of("predicate", "通道净宽", "requires", List.of("lkp-passage-main"))),
+          Map.of("domain_extra", List.of("人体工学")),
+          1);
+
+  private static final CheckAsset CHECK =
+      new CheckAsset(
+          "cr-weak-words",
+          "regex_deny",
+          List.of("正文"),
+          "可能|建议考虑|也许",
+          null,
+          "分析级结论禁弱词（规则 5.9）",
+          "规范规则 5.9",
+          List.of(),
+          1);
+
   private static final ReleaseSnapshot ERGONOMICS =
       new ReleaseSnapshot(
           "ergonomics",
@@ -37,7 +59,9 @@ class RulebookEvaluatorTest {
               param("lkp-tv-distance", "电视观看距离", null, "屏高 × [3,4]", "draft"),
               param("lkp-mystery", "无可执行形态", null, "神秘公式", "draft"),
               param("lkp-empty", "空定义", null, null, "draft")),
-          List.of(new PersonaAssetRef("persona-ergonomics", 1)));
+          List.of(PERSONA),
+          List.of(CHECK),
+          List.of("依据", "综合考量"));
 
   private static final EvaluationInput INPUT =
       new EvaluationInput(1700, 1780, null, null, Map.of("kitchen_shape", "U"));
@@ -77,13 +101,24 @@ class RulebookEvaluatorTest {
             "lighting",
             "lighting@v1",
             List.of(param("lkp-cct-living", "起居色温", Map.of("v", 3000), null, "draft")),
-            List.of(new PersonaAssetRef("persona-lighting", 1)));
+            List.of(),
+            List.of(),
+            List.of());
 
     ReportDataPackage a = evaluator.evaluate(List.of(ERGONOMICS, lighting), INPUT);
     ReportDataPackage b = evaluator.evaluate(List.of(lighting, ERGONOMICS), INPUT);
 
     assertEquals(a, b);
     assertEquals(List.of("ergonomics", "lighting"), a.domains());
+  }
+
+  @Test
+  void carriesSelfContainedCompositionPayload() {
+    ReportDataPackage pkg = evaluator.evaluate(List.of(ERGONOMICS), INPUT);
+
+    assertEquals(List.of(PERSONA), pkg.personasByDomain().get("ergonomics"));
+    assertEquals(List.of(CHECK), pkg.checksByDomain().get("ergonomics"));
+    assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
   }
 
   private static ReportAnchor anchor(ReportDataPackage pkg, String lkpId) {

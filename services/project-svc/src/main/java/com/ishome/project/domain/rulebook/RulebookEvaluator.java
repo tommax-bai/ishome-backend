@@ -25,9 +25,19 @@ public final class RulebookEvaluator {
         snapshots.stream().sorted(Comparator.comparing(ReleaseSnapshot::domain)).toList();
     List<ReportAnchor> anchors = new ArrayList<>();
     List<GapRecord> gaps = new ArrayList<>();
-    Map<String, List<PersonaAssetRef>> personas = new TreeMap<>();
+    Map<String, List<PersonaAsset>> personas = new TreeMap<>();
+    Map<String, List<CheckAsset>> checks = new TreeMap<>();
+    Map<String, List<String>> bannedTerms = new TreeMap<>();
     for (ReleaseSnapshot snapshot : ordered) {
-      personas.put(snapshot.domain(), List.copyOf(snapshot.personas()));
+      personas.put(
+          snapshot.domain(),
+          snapshot.personas().stream()
+              .sorted(Comparator.comparing(PersonaAsset::assetId))
+              .toList());
+      checks.put(
+          snapshot.domain(),
+          snapshot.checks().stream().sorted(Comparator.comparing(CheckAsset::assetId)).toList());
+      bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
       for (ParameterAsset parameter : snapshot.parameters()) {
         resolve(parameter, snapshot.releaseTag(), input, anchors, gaps);
       }
@@ -40,6 +50,8 @@ public final class RulebookEvaluator {
         List.copyOf(anchors),
         List.copyOf(gaps),
         personas,
+        checks,
+        bannedTerms,
         input);
   }
 
