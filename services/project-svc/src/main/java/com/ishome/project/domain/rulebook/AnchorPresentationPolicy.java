@@ -1,5 +1,6 @@
 package com.ishome.project.domain.rulebook;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -17,8 +18,9 @@ import java.util.Map;
  *       <ul>
  *         <li>定位数字（{@code number_class = locating}）一律隐藏：定位数字只允许出现在 prec-exact 图纸， 业主会把它当施工指令读（规则
  *             2.2/2.3）。"参考口吻的定位数字"不存在，措辞限定拦不住它被拿去施工。
- *         <li>值形态不含 {@code min}/{@code max} 的（点值、分档映射等）一律隐藏：把点值人为拓宽成区间 等于引擎自己编数字（图 v0.2 §0 数字不由 LLM
- *             决定，同理不由引擎瞎凑），拓宽多宽没有任何依据。 含 min 或 max 的值本身就是区间或边界，原样以参考口吻出现即可，降档够用。
+ *         <li>值里**任意层级**都找不到区间的（纯点值、点值映射）一律隐藏：把点值人为拓宽成区间等于引擎 自己编数字（图 v0.2 §0 数字不由 LLM
+ *             决定，同理不由引擎瞎凑），拓宽多宽没有任何依据。 反之只要值里已有区间或边界（含分档映射的叶子区间），原样以参考口吻出现即可——判据看的是
+ *             "要不要编数字"，不是"顶层长什么样"（见 {@link #hasRangeForm}）。
  *       </ul>
  *   <li><b>判不准的一律隐藏</b>：冷启动纪律是"宁可章节少、页数薄，不可用无背书的判断句撑密度"（规则 4.18/1.6）， 门禁失效的方向必须是少发而不是多发。
  * </ol>
@@ -71,8 +73,31 @@ public final class AnchorPresentationPolicy {
     return new Verdict(AnchorPresentation.WITHHELD, WITHHOLD_REASON_NO_RANGE_FORM);
   }
 
-  /** 区间形态 = 值里有 min 或 max（含单边界，如主通道净宽的 {@code {min:900}}"不少于"说法）。 */
-  private static boolean hasRangeForm(Map<String, Object> value) {
-    return value != null && (value.containsKey(RANGE_KEY_MIN) || value.containsKey(RANGE_KEY_MAX));
+  /**
+   * 区间形态 = 值里**任意层级**出现区间：min/max 前缀的键（含单边界，如主通道净宽 {@code {min:900}} 的"不少于"说法、淋浴净空 {@code
+   * {min_w,min_d}}），或二元数值数组（如占比带 {@code [0.03,0.08]}）。
+   *
+   * <p>递归是本判据的要害。初版只看顶层键，把分档映射整条判成隐藏——但 {@code {拆改:[0.03,0.08], 水电:[0.08,0.15]}}
+   * 的**每个叶子本身就是区间**，以参考口吻说"拆改占 3-8%" 不需要引擎编任何数字。隐藏的理由是"把点值人为拓宽成区间＝引擎自己编数字"（规则 4.10c）；
+   * 该理由在这里不成立，据此隐藏就是过拦——**过拦与漏拦同样是失效**，代价是造价章整章发不出来。 反例：{@code {high:0.15, medium:0.30, low:0.50}}
+   * 的叶子全是点值，仍判非区间，照旧隐藏。
+   */
+  private static boolean hasRangeForm(Object value) {
+    if (value instanceof Map<?, ?> map) {
+      for (Map.Entry<?, ?> entry : map.entrySet()) {
+        if (entry.getKey() instanceof String key
+            && (key.startsWith(RANGE_KEY_MIN) || key.startsWith(RANGE_KEY_MAX))) {
+          return true;
+        }
+        if (hasRangeForm(entry.getValue())) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (value instanceof List<?> list) {
+      return list.size() == 2 && list.stream().allMatch(x -> x instanceof Number);
+    }
+    return false;
   }
 }
