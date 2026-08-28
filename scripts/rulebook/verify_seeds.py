@@ -27,7 +27,7 @@ UNITS = {"mm","m","K","Ra","°","lx","㎡","投影㎡","延米","延米/㎡","�
 # 经验条目借内部条文号伪装可核，正是规则 4.10b 要堵的路（首跑即误判过一批，故收紧）。
 LOCATOR = re.compile(r"GB[/T ]?\s?\d|JGJ\s?\d|https?://|\.com|\.cn|信息价")
 
-errors, warns, eligible = [], [], []
+errors, warns, eligible, conflicts = [], [], [], []
 
 def load(path):
     with open(path, encoding="utf-8") as f:
@@ -91,7 +91,10 @@ for f, d in docs.items():
         cal = merged.get("calibration", "draft")
         src, pend = merged.get("source") or "", merged.get("source_pending")
         if cal == "calibrated": errors.append(f"{ctx}: 种子不得预置 calibrated（只能由本跑批授予）")
-        if src and LOCATOR.search(src) and not pend: eligible.append(ctx)
+        # conflict 条目一律不够格（规则 4.16①）：源间互斥时"依据可定位"不构成可核性——
+        # 两个都能定位、彼此打架的源，定位性不等于正确性。发布侧另有排除（publish_release）。
+        if merged.get("conflict"): conflicts.append(ctx)
+        elif src and LOCATOR.search(src) and not pend: eligible.append(ctx)
         elif not src: warns.append(f"{ctx}: source 为空")
 
 print(f"== 核验跑批：{len(files)} 文件，参数 {len(param_ids)}，机检 {len(check_ids)}")
@@ -99,4 +102,7 @@ for e in errors: print("ERROR", e)
 for w in warns: print("warn ", w)
 print(f"== 可转 calibrated（source 可定位且无 pending）：{len(eligible)}")
 for c in eligible: print("  ok ", c)
+if conflicts:
+    print(f"== conflict 条目（源间不一致，不进 release，规则 4.16①）：{len(conflicts)}")
+    for c in conflicts: print("  conflict ", c)
 sys.exit(1 if errors else 0)

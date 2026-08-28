@@ -20,8 +20,22 @@ from ulid import ULID
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEEDS = os.path.join(HERE, "..", "..", "services/project-svc/src/main/resources/rulebook-seeds")
-MIGRATION = os.path.join(HERE, "..", "..",
-    "services/project-svc/src/main/resources/db/migration/V2__init_svc_rulebook.sql")
+MIGRATION_GLOB = os.path.join(HERE, "..", "..",
+    "services/project-svc/src/main/resources/db/migration/V*__*rulebook*.sql")
+SCHEMA = "svc_rulebook"
+VALIDATE_SCHEMA = "svc_rulebook_validate"
+"""--validate 走一次性影子 schema：正式 schema 已被 Flyway 建好后（V2 之后的常态），
+再往里 CREATE TABLE 必然撞表。影子 schema 内建表→灌库→统计→ROLLBACK，DDL 在 PG 里同属事务，
+连 schema 本身都不会留下。"""
+
+
+def migration_sql(schema: str) -> str:
+    """按版本号顺序拼接 rulebook 相关迁移（V2 建表、V3+ 增量），占位符替换为目标 schema。"""
+    files = sorted(glob.glob(MIGRATION_GLOB),
+                   key=lambda p: int(os.path.basename(p).split("__")[0][1:]))
+    return f"CREATE SCHEMA IF NOT EXISTS {schema};\n" + "\n".join(
+        open(f, encoding="utf-8").read().replace("${rulebook_schema}", schema)
+        for f in files)
 
 def dsn():
     return (f"host={os.environ.get('ISHOME_DB_HOST','localhost')} "
@@ -72,6 +86,7 @@ def rows():
                     content=m["content"], rationale=m.get("rationale"), severity=m["severity"],
                     point_spec=J(m["point_spec"]) if m.get("point_spec") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
+                    conflict=bool(m.get("conflict", False)),
                     consumers=J(m.get("consumers", []))))
             elif form == "parameter":
                 unit = m.get("unit") or (m.get("value") or {}).get("unit") if isinstance(m.get("value"), dict) else m.get("unit")
@@ -81,6 +96,7 @@ def rows():
                     formula=m.get("formula"), unit=str(unit) if unit else None,
                     linked=J(m.get("linked")) if m.get("linked") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
+                    conflict=bool(m.get("conflict", False)),
                     acquired=m.get("acquired"), consumers=J(m.get("consumers", []))))
             elif form == "attribute":
                 props = m.get("props", {})
@@ -90,6 +106,7 @@ def rows():
                     effective_from=props.get("effective_from"), effective_to=props.get("effective_to"),
                     calibration="draft", source=m.get("source"), source_2=m.get("source_2"),
                     source_pending=m.get("source_pending"), note=m.get("note"),
+                    conflict=bool(m.get("conflict", False)),
                     consumers=J(m.get("consumers", []))))
             elif form == "check":
                 refs = [m["max_from"]] if m.get("max_from") else []
@@ -102,9 +119,10 @@ def main():
     validate = "--validate" in sys.argv
     eligible = run_verify()
     counts, flipped = {}, 0
+    schema = VALIDATE_SCHEMA if validate else SCHEMA
     with psycopg.connect(dsn()) as conn, conn.cursor() as cur:
         if validate:
-            cur.execute(open(MIGRATION, encoding="utf-8").read())
+            cur.execute(migration_sql(schema))
         for table, ctx, aid, row in rows():
             if "calibration" in row and ctx in eligible:
                 row["calibration"] = "calibrated"; flipped += 1
@@ -113,7 +131,7 @@ def main():
             upd = ", ".join(f"{c}=EXCLUDED.{c}" for c in row if c != "asset_id") + ", updated_at=now()" \
                   if table != "checks" else ", ".join(f"{c}=EXCLUDED.{c}" for c in row if c != "asset_id") + ", updated_at=now()"
             cur.execute(
-                f"INSERT INTO svc_rulebook.{table} ({', '.join(cols)}) "
+                f"INSERT INTO {schema}.{table} ({', '.join(cols)}) "
                 f"VALUES ({', '.join(['%s']*len(vals))}) "
                 f"ON CONFLICT (asset_id, version) DO UPDATE SET {upd}", vals)
             counts[table] = counts.get(table, 0) + 1

@@ -6,14 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.f4b6a3.ulid.UlidCreator;
 import com.ishome.project.application.ReportEvaluationAppService;
+import com.ishome.project.domain.rulebook.AnchorPresentation;
+import com.ishome.project.domain.rulebook.ArtifactEntitlement;
 import com.ishome.project.domain.rulebook.EvaluationInput;
 import com.ishome.project.domain.rulebook.ReleaseNotFoundException;
 import com.ishome.project.domain.rulebook.ReleaseRef;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
+import com.ishome.project.domain.rulebook.WithheldAnchor;
 import com.ishome.project.testsupport.PostgresIntegrationTestSupport;
 import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
 import java.util.List;
@@ -117,11 +121,12 @@ class RulebookEvaluationIntegrationTest {
         snapshot);
   }
 
-  /** 三域求值：公式代入、直取、降档标记、gap 记录、release 引用集齐全。 */
+  /** 三域求值（FREE 侧全量下发）：公式代入、直取、降档标记、gap 记录、release 引用集齐全。 */
   @Test
   void evaluatesThreeDomainsAgainstPublishedReleases() {
     ReportDataPackage pkg =
-        reportEvaluationAppService.evaluate(List.of("lighting", "ergonomics", "budget"), INPUT);
+        reportEvaluationAppService.evaluate(
+            List.of("lighting", "ergonomics", "budget"), INPUT, ArtifactEntitlement.FREE);
 
     assertEquals(List.of("budget", "ergonomics", "lighting"), pkg.domains());
     assertEquals(
@@ -147,14 +152,66 @@ class RulebookEvaluationIntegrationTest {
         List.of("cr-weak-words"),
         pkg.checksByDomain().get("ergonomics").stream().map(c -> c.assetId()).toList());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
+    assertEquals(List.of(), pkg.withheldAnchors());
+  }
+
+  /**
+   * PAID 门禁真库实跑（规则 4.10）：三章 stage-project 产物全量 PAID（规则 9.1）——未背书的点值/分档值 不下发，只留 withheldAnchors
+   * 审计；未背书的区间降档为参考形态；过可核性门的照常作判断句支点。
+   */
+  @Test
+  void paidGateWithholdsUnbackedAnchorsFromPublishedReleases() {
+    ReportDataPackage pkg =
+        reportEvaluationAppService.evaluate(
+            List.of("lighting", "ergonomics", "budget"), INPUT, ArtifactEntitlement.PAID);
+
+    assertEquals(ArtifactEntitlement.PAID, pkg.entitlement());
+    assertEquals(
+        List.of("lkp-counter-height", "lkp-illuminance-living", "lkp-passage-main"),
+        pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
+    assertEquals(
+        List.of(
+            new WithheldAnchor("lkp-budget-confidence-width", "budget@v1", "no_range_form"),
+            new WithheldAnchor("lkp-cct-living", "lighting@v1", "no_range_form"),
+            new WithheldAnchor("lkp-wardrobe-rod", "ergonomics@v1", "no_range_form")),
+        pkg.withheldAnchors());
+    assertEquals(
+        AnchorPresentation.THESIS_SUPPORT, anchor(pkg, "lkp-illuminance-living").presentation());
+    assertEquals(
+        AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-counter-height").presentation());
+    assertEquals(AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-passage-main").presentation());
+    // 隐藏与求不出是两回事：gap- 仍只有 lkp-tv-distance（规则 4.5 两条回流信号不混）
+    assertEquals(List.of("lkp-tv-distance"), pkg.gaps().stream().map(g -> g.lkpId()).toList());
+  }
+
+  /**
+   * 跨语言契约形态（contracts rulebook/report_data_package.schema.json）：门禁三字段的**线上字面量**—— 成文线的 pydantic
+   * 镜像按同样的字面量解析，改一个字母两侧就对不上，故在此钉死。
+   */
+  @Test
+  void serializesGateFieldsInContractShape() throws Exception {
+    ReportDataPackage pkg =
+        reportEvaluationAppService.evaluate(List.of("ergonomics"), INPUT, ArtifactEntitlement.PAID);
+    JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(pkg));
+
+    assertEquals("PAID", json.path("entitlement").asText());
+    JsonNode counter = json.path("anchors").path(0);
+    assertEquals("lkp-counter-height", counter.path("lkpId").asText());
+    assertEquals("REFERENCE_ONLY", counter.path("presentation").asText());
+    JsonNode withheld = json.path("withheldAnchors").path(0);
+    assertEquals("lkp-wardrobe-rod", withheld.path("lkpId").asText());
+    assertEquals("ergonomics@v1", withheld.path("basisTag").asText());
+    assertEquals("no_range_form", withheld.path("reason").asText());
   }
 
   /** 图 v0.2 §8 首批验证第一件事：同输入重复求值，序列化字节级同输出（规则 8.2 可重放）。 */
   @Test
   void replayProducesByteIdenticalPackage() throws Exception {
     List<String> domains = List.of("lighting", "ergonomics", "budget");
-    ReportDataPackage first = reportEvaluationAppService.evaluate(domains, INPUT);
-    ReportDataPackage second = reportEvaluationAppService.evaluate(domains, INPUT);
+    ReportDataPackage first =
+        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID);
+    ReportDataPackage second =
+        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID);
 
     assertEquals(first, second);
     assertArrayEquals(
@@ -166,7 +223,9 @@ class RulebookEvaluationIntegrationTest {
   void refusesDomainWithoutRelease() {
     assertThrows(
         ReleaseNotFoundException.class,
-        () -> reportEvaluationAppService.evaluate(List.of("storage"), INPUT));
+        () ->
+            reportEvaluationAppService.evaluate(
+                List.of("storage"), INPUT, ArtifactEntitlement.PAID));
   }
 
   private static ReportAnchor anchor(ReportDataPackage pkg, String lkpId) {

@@ -36,21 +36,35 @@ def dsn():
             f"password={os.environ.get('ISHOME_DB_PASSWORD','ishome-local-dev')}")
 
 
-def snapshot_assets(cur, domain: str) -> dict:
+# 有外部真源、受交叉验证约束的三形态（规则 4.16）——它们才有 conflict 列
+CONFLICT_AWARE = {"rules", "parameters", "attributes"}
+
+
+def snapshot_assets(cur, domain: str) -> tuple[dict, list[str]]:
     """各形态取 (domain, cross) 未删条目的最新 version，按 asset_id 排序——确定性快照。
 
     行内容剔除 id/created_at/updated_at/deleted_at：快照比较基于内容，不受导入时间戳影响。
+    **conflict 条目排除出快照**（规则 4.16①"不一致挂 conflict 且不进 release"）：与 draft 的
+    区别在于降不降得动——draft 是依据不足可降档呈现，conflict 是两个源各说各话，参考形态呈现的
+    仍是一个没有共识的数。被排除者返回清单，发布时打印，避免"悄悄少了一条"。
     """
-    assets = {}
+    assets, excluded = {}, []
     for form in FORMS:
+        conflict_filter = "AND conflict IS NOT TRUE " if form in CONFLICT_AWARE else ""
         cur.execute(
             f"SELECT to_jsonb(t) - 'id' - 'created_at' - 'updated_at' - 'deleted_at' "
             f"FROM (SELECT DISTINCT ON (asset_id) * FROM svc_rulebook.{form} "
-            f"      WHERE domain IN (%s, 'cross') AND deleted_at IS NULL "
+            f"      WHERE domain IN (%s, 'cross') AND deleted_at IS NULL {conflict_filter}"
             f"      ORDER BY asset_id, version DESC) t ORDER BY t.asset_id",
             (domain,))
         assets[form] = [r[0] for r in cur.fetchall()]
-    return assets
+        if conflict_filter:
+            cur.execute(
+                f"SELECT DISTINCT asset_id FROM svc_rulebook.{form} "
+                f"WHERE domain IN (%s, 'cross') AND deleted_at IS NULL AND conflict IS TRUE "
+                f"ORDER BY asset_id", (domain,))
+            excluded += [r[0] for r in cur.fetchall()]
+    return assets, sorted(excluded)
 
 
 def latest_release(cur, domain: str) -> tuple[int, dict | None]:
@@ -74,7 +88,7 @@ def main():
         sys.exit(2)
     with psycopg.connect(dsn()) as conn, conn.cursor() as cur:
         for domain in domains:
-            assets = snapshot_assets(cur, domain)
+            assets, excluded = snapshot_assets(cur, domain)
             n, prev = latest_release(cur, domain)
             if prev is not None and prev.get("assets") == assets:
                 print(f"  skip {domain}@v{n}（内容未变，不空切版本）")
@@ -84,11 +98,13 @@ def main():
             calibrated = sum(1 for f in FORMS for a in assets[f]
                              if a.get("calibration") == "calibrated")
             snap = {"release_tag": tag, "domain": domain,
-                    "stats": {**counts, "calibrated": calibrated}, "assets": assets}
+                    "stats": {**counts, "calibrated": calibrated, "excluded_conflict": excluded},
+                    "assets": assets}
             cur.execute(
                 "INSERT INTO svc_rulebook.releases (id, domain, release_tag, snapshot) "
                 "VALUES (%s, %s, %s, %s)", (str(ULID()), domain, tag, Json(snap)))
-            print(f"  cut  {tag}：{counts}，calibrated={calibrated}")
+            print(f"  cut  {tag}：{counts}，calibrated={calibrated}"
+                  + (f"，conflict 排除 {len(excluded)}：{excluded}" if excluded else ""))
         conn.commit()
     print("== release 为不可变快照：回滚=切回旧 release_tag，禁止 UPDATE（规则 4.12）")
 

@@ -12,6 +12,10 @@ import java.util.TreeMap;
  *
  * <p>三条求值路径：①参数带 value → 直取（formula 仅为推导说明）；②仅带 formula → 按 assetId 显式实现
  * 代入匿名输入——公式的可执行形态在此登记，未登记/输入缺失 → gap-；③无值无公式 → gap-。 结果按 lkpId 排序，数值全为整数毫米/原样单位——不引入浮点位数漂移。
+ *
+ * <p>求出值之后还要过一道**降档纪律**（{@link AnchorPresentationPolicy}，规则 4.10）：按本次求值服务的产物 权益档判呈现档位；判为 {@link
+ * AnchorPresentation#WITHHELD} 的落点**不进 anchors**，只在 withheldAnchors 留 id
+ * 与原因。门禁执行在这里而不是靠成文线自觉——未背书的值根本不下发才叫强制。
  */
 public final class RulebookEvaluator {
 
@@ -20,10 +24,14 @@ public final class RulebookEvaluator {
 
   private static final int COUNTER_OFFSET_MAX = 100;
 
-  public ReportDataPackage evaluate(List<ReleaseSnapshot> snapshots, EvaluationInput input) {
+  private final AnchorPresentationPolicy presentationPolicy = new AnchorPresentationPolicy();
+
+  public ReportDataPackage evaluate(
+      List<ReleaseSnapshot> snapshots, EvaluationInput input, ArtifactEntitlement entitlement) {
     List<ReleaseSnapshot> ordered =
         snapshots.stream().sorted(Comparator.comparing(ReleaseSnapshot::domain)).toList();
     List<ReportAnchor> anchors = new ArrayList<>();
+    List<WithheldAnchor> withheld = new ArrayList<>();
     List<GapRecord> gaps = new ArrayList<>();
     Map<String, List<PersonaAsset>> personas = new TreeMap<>();
     Map<String, List<CheckAsset>> checks = new TreeMap<>();
@@ -39,15 +47,18 @@ public final class RulebookEvaluator {
           snapshot.checks().stream().sorted(Comparator.comparing(CheckAsset::assetId)).toList());
       bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
       for (ParameterAsset parameter : snapshot.parameters()) {
-        resolve(parameter, snapshot.releaseTag(), input, anchors, gaps);
+        resolve(parameter, snapshot.releaseTag(), input, entitlement, anchors, withheld, gaps);
       }
     }
     anchors.sort(Comparator.comparing(ReportAnchor::lkpId));
+    withheld.sort(Comparator.comparing(WithheldAnchor::lkpId));
     gaps.sort(Comparator.comparing(GapRecord::lkpId));
     return new ReportDataPackage(
+        entitlement,
         ordered.stream().map(ReleaseSnapshot::domain).toList(),
         ordered.stream().map(ReleaseSnapshot::ref).toList(),
         List.copyOf(anchors),
+        List.copyOf(withheld),
         List.copyOf(gaps),
         personas,
         checks,
@@ -59,10 +70,12 @@ public final class RulebookEvaluator {
       ParameterAsset parameter,
       String releaseTag,
       EvaluationInput input,
+      ArtifactEntitlement entitlement,
       List<ReportAnchor> anchors,
+      List<WithheldAnchor> withheld,
       List<GapRecord> gaps) {
     if (parameter.value() != null && !parameter.value().isEmpty()) {
-      anchors.add(anchor(parameter, releaseTag, parameter.value()));
+      publish(parameter, releaseTag, parameter.value(), entitlement, anchors, withheld);
       return;
     }
     if (parameter.formula() == null || parameter.formula().isBlank()) {
@@ -103,11 +116,32 @@ public final class RulebookEvaluator {
               parameter.formula()));
       return;
     }
-    anchors.add(anchor(parameter, releaseTag, computed));
+    publish(parameter, releaseTag, computed, entitlement, anchors, withheld);
+  }
+
+  /** 求值成功后的下发决定：过降档纪律，隐藏档只留审计条，其余进落点对象（规则 4.10）。 */
+  private void publish(
+      ParameterAsset parameter,
+      String releaseTag,
+      Map<String, Object> value,
+      ArtifactEntitlement entitlement,
+      List<ReportAnchor> anchors,
+      List<WithheldAnchor> withheld) {
+    AnchorPresentationPolicy.Verdict verdict =
+        presentationPolicy.decide(
+            parameter.calibration(), parameter.numberClass(), value, entitlement);
+    if (verdict.presentation() == AnchorPresentation.WITHHELD) {
+      withheld.add(new WithheldAnchor(parameter.assetId(), releaseTag, verdict.withholdReason()));
+      return;
+    }
+    anchors.add(anchor(parameter, releaseTag, value, verdict.presentation()));
   }
 
   private ReportAnchor anchor(
-      ParameterAsset parameter, String releaseTag, Map<String, Object> value) {
+      ParameterAsset parameter,
+      String releaseTag,
+      Map<String, Object> value,
+      AnchorPresentation presentation) {
     return new ReportAnchor(
         parameter.assetId(),
         parameter.name(),
@@ -117,7 +151,8 @@ public final class RulebookEvaluator {
         releaseTag,
         parameter.source(),
         parameter.calibration(),
-        !"calibrated".equals(parameter.calibration()));
+        !"calibrated".equals(parameter.calibration()),
+        presentation);
   }
 
   private static Map<String, Object> range(int min, int max) {
