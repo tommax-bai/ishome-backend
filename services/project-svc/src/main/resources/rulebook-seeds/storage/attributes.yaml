@@ -5,8 +5,22 @@ entity_type: storage_item
 release: null
 attribute_schema: {w: {type: number, unit: mm}, d: {type: number, unit: mm}, h: {type: number, unit: mm},
   qty_per_family: {type: string, desc: "家庭结构对应件数（来自 Q-STORAGE 盘点回流）"}}
+# run-2026-08-28-2 取证结论：**四条全部未采**。共同原因是一个口径问题而非找不到数据——
+# "28寸行李箱""立式吸尘器""扫地机基站"是**品类名**，厂商公开尺寸是**型号级**的，跨型号离散度大于
+# 柜内净空的设计余量，取任一型号点值都不能代表品类。收纳尺寸库的正确形态可能是区间/包络而非点值，
+# 属 schema 口径问题，留待用户拍板（见 _acquisition/run-2026-08-28-2.md §需要拍板）。
 items:
-  - {id: attr-item-suitcase-28, name: 28寸行李箱, calibration: draft, props: {w: 500, d: 320, h: 780}, source_pending: "厂商公开外廓尺寸 ≥2 源"}
-  - {id: attr-item-quilt-winter, name: 冬季被芯（收纳后）, calibration: draft, props: {w: 600, d: 400, h: 300}, source_pending: "常见收纳袋规格"}
-  - {id: attr-item-vacuum-stick, name: 立式吸尘器, calibration: draft, props: {w: 250, d: 250, h: 1200}, source_pending: "厂商公开尺寸"}
-  - {id: attr-item-robot-dock, name: 扫地机基站, calibration: draft, props: {w: 400, d: 450, h: 600}, source_pending: "厂商公开尺寸，需带插座位联动"}
+  - {id: attr-item-suitcase-28, name: 28寸行李箱, calibration: draft, props: {w: 500, d: 320, h: 780},
+     source_pending: "厂商公开外廓尺寸 ≥2 源——**未取到**。本轮只取到百科/问答类聚合值 760×510×320mm（autohome.com.cn/ask/3259895、jia.jiwu.com/baike/26232），非厂商源、且三边和 158cm 是 IATA 托运限值口径不是实测外廓；新秀丽/小米90分官方规格页未取到。★另注：'28寸'是箱体标称尺寸，含轮/含拉杆的外廓另计，两种口径禁混用",
+     acquired: run-2026-08-28-2}
+  - {id: attr-item-quilt-winter, name: 冬季被芯（收纳后）, calibration: draft, props: {w: 600, d: 400, h: 300},
+     source_pending: "常见收纳袋规格——本轮未动（第三轮目标外）"}
+  - {id: attr-item-vacuum-stick, name: 立式吸尘器, calibration: draft, props: {w: 250, d: 250, h: 1200},
+     source: "厂商公开尺寸两源，**部分一致**：ZOL 参数页引戴森 V15 Detect Total Clean 产品尺寸 1200×265×250mm（detail.zol.com.cn/1373/1372337/param.shtml）；戴森官网 V15 Detect Fluffy 1068×265×250mm（www.dyson.cn/400471-01-dyson-v15-detect-fluffy-blue.html）——宽 265 / 厚 250 两源一致，**长（立起时的高）1200 vs 1068 不一致**",
+     source_pending: "高度不一致按规则 4.16① 挂冲突不采。差异源于配置口径（随机地刷/延长管型号不同则组装总长不同），非源错误——需先定义'立式吸尘器收纳净空'量的是哪种组装状态，再取 ≥2 源",
+     conflict: true,
+     note: "现存 props 的 w:250 与两源的宽 265 不符（源生口径为 长×宽×高）；因整条挂冲突，本轮不做单字段修补",
+     acquired: run-2026-08-28-2}
+  - {id: attr-item-robot-dock, name: 扫地机基站, calibration: draft, props: {w: 400, d: 450, h: 600},
+     source_pending: "厂商公开尺寸 ≥2 源——**未取到**。本轮取到石头 P10S Pro 基站三组互斥值，且全部出自评测/转引源而非厂商规格页：487×340×405mm（迷你基站）、340×487×521mm（水箱版）、432×445×278mm（超薄全嵌自动上下水版）——同一机型不同基站配置差异达 243mm，属配置口径问题。厂商官方 PDF（files.roborock.com/product-center/video/v65dc7e2c307aa.pdf，20 页说明书）全文无尺寸参数。仍需带插座位联动",
+     acquired: run-2026-08-28-2}

@@ -1,6 +1,7 @@
 # parameter 形态 · 照明域
 # 治理头：规则 4.10；可核性门：规则 4.10a（calibrated 只能由机检核验取得）
-# 现状：全部 draft —— 数值来自行业通行做法与内部规范，尚未接外部标准原文（获取回路，规则 4.16）
+# 现状：照度族已接 GB/T 50034-2024 表5.2.1 **原文直取**（run-2026-08-28-2，住宅表全行）；
+#       选型族（色温/显指/光束角）经厂商在售可得性核验；lkp-cct-variety-max 与 lkp-pendant-drop-dining 无外部真源
 domain: lighting
 form: parameter
 release: null            # 未发布；calibrated 条目齐备后方可 cut release
@@ -12,8 +13,8 @@ items:
     value: {min: 3, max: 5, unit: "×环境照度"}
     formula: "重点照度 = 环境照度 × [3,5]"
     calibration: draft
-    source: "GB 50034-2013 表5.2.1（住宅：起居室一般活动 100lx / 书写阅读 300lx，0.75m 水平面）——300/100=3× 即本倍数下界；上界 5× 为行业通行。2024 版核对（run-2026-08-28）：起居室两值不变，3× 下界锚不动；注意 2024 版为 GB/T 推荐性标准（原 GB 强制性废止）"
-    acquired: run-2026-08-28
+    source: "GB/T 50034-2024 表5.2.1 原文直取（run-2026-08-28-2，PDF 全文 zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：起居室 0.75m 水平面 一般活动 100lx / 书写阅读 300lx——300/100=3× 即本倍数下界；三版同值（2004/2013/2024）。上界 5× 为行业通行（无外部源）。注意 2024 版为 GB/T 推荐性标准，5.2.1 措辞为'宜符合'（原 GB 强制性 2024-08-01 废止）"
+    acquired: run-2026-08-28-2
     consumers: [art-lighting-chapter, art-purchase-checklist]
 
   - id: lkp-illuminance-living
@@ -21,8 +22,9 @@ items:
     number_class: analysis
     value: {general: 100, reading: 300, unit: lx, plane: "0.75m 水平面"}
     calibration: draft              # source 已可定位，待核验跑批后转 calibrated
-    source: "GB 50034-2013 表5.2.1（jianbiaoku.com/webarbs/book/49/1044521）；GB 50034-2004 同值（cabr-th.com PDF）；GB/T 50034-2024 同值（jsq3000.com/build/lighting-watt 引 2024 表 + zhuanlan.zhihu.com/p/720498962 经搜索摘要）——三版同值。2024 版性质变化：GB 强制 → GB/T 推荐（2024-08-01 实施）"
-    acquired: run-2026-08-28
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（run-2026-08-28-2；标准全文 PDF，共 155 页，zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf；住建部公告 2024 年第 33 号，2024-03-12 发布 / 2024-08-01 实施）：起居室 0.75m 水平面，一般活动 100lx、书写阅读 300lx，Ra 80"
+    source_2: "转引对照：GB 50034-2013 表5.2.1（jianbiaoku.com/webarbs/book/49/1044521）与 GB 50034-2004（cabr-th.com PDF）同值；2024 版转引 jsq3000.com/build/lighting-watt——三版同值，原文与转引一致"
+    acquired: run-2026-08-28-2
     consumers: [art-lighting-chapter]
 
   - id: lkp-illuminance-bedroom
@@ -30,10 +32,57 @@ items:
     number_class: analysis
     value: {general: 75, reading: 200, unit: lx, plane: "0.75m 水平面（床头阅读为混合照明）"}
     calibration: draft
-    source: "GB/T 50034-2024 住宅表（jsq3000.com/build/lighting-watt 引表 + zhuanlan.zhihu.com/p/720498962 经搜索摘要，两源同值）；旧版对照：GB 50034-2013 床头阅读 150lx（gbwindows.org 报批稿 PDF 表5.1.1 原文直取）——2024 版床头阅读 150→200 是住宅表主要变化"
-    source_pending: "GB/T 50034-2024 原文直取核对（当前经转引；厨房操作台 300/走廊 100/镜前 300 等单源数值未采，见 run-2026-08-28）"
-    acquired: run-2026-08-28
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（run-2026-08-28-2，PDF 全文 zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：卧室 0.75m 水平面，一般活动 75lx、床头阅读 200lx（原表该行带★=混合照明照度），Ra 80。条文说明 5.2.1 原文：'本条与本标准 2013 版相比，提高了床头、阅读、厨房操作台面、走廊、楼梯间、电梯前厅的照度值要求，增加了卫生间化妆台的照度标准值'"
+    source_2: "旧版对照 GB 50034-2013 表5.1.1 床头阅读 150lx（gbwindows.org/upFiles/download/2014031667400321.pdf 报批稿原文直取）；2024 版转引 jsq3000.com/build/lighting-watt 同值——run-2026-08-28 的转引值经本轮原文核对成立"
+    acquired: run-2026-08-28-2
     consumers: [art-lighting-chapter]
+
+  # —— 以下四条为 run-2026-08-28-2 新增：GB/T 50034-2024 表5.2.1 原文直取补齐住宅表全行 ——
+  # 同一表、同一次原文直取，source 写法一致；★=原表注"指混合照明照度"
+  - id: lkp-illuminance-kitchen
+    name: 厨房照度标准值
+    number_class: analysis
+    value: {general: 100, task: 300, unit: lx,
+            plane: "一般活动 0.75m 水平面；操作台 台面（★混合照明照度）"}
+    calibration: draft
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：厨房 一般活动 0.75m 水平面 100lx；操作台 台面 300lx（★混合照明）；Ra 80"
+    source_2: "转引 jsq3000.com/build/lighting-watt 引 2024 住宅表 操作台 300lx——run-2026-08-28 记为单源未采，本轮经原文核对成立（2013 版为 150lx，条文说明 5.2.1 列为本次提高项）"
+    acquired: run-2026-08-28-2
+    note: "★口径：300lx 是**混合照明**照度（一般照明+局部照明合计），不是单靠一般照明达到；禁止按一般照明口径复用"
+    consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
+
+  - id: lkp-illuminance-bath
+    name: 卫生间照度标准值
+    number_class: analysis
+    value: {general: 100, vanity: 300, unit: lx,
+            plane: "一般活动 0.75m 水平面；化妆台 台面（★混合照明照度）"}
+    calibration: draft
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：卫生间 一般活动 0.75m 水平面 100lx（Ra 80）；化妆台 台面 300lx（★混合照明，Ra 90）——本行为 2024 版新增项（条文说明 5.2.1：'增加了卫生间化妆台的照度标准值'）"
+    source_2: "转引 jsq3000.com/build/lighting-watt 引 2024 住宅表 化妆镜前 300lx——run-2026-08-28 记为单源未采，本轮经原文核对成立"
+    acquired: run-2026-08-28-2
+    note: "★口径两点：①原文是'化妆台 台面'水平照度，不是'镜前垂直面'——住宅表未给垂直面值；②垂直面 500lx 出现在同标准表5.3.4（剧场化妆室 1.1m 高处垂直面 500lx Ra90），是**公共建筑**口径，禁跨建筑类别复用。③本行 Ra 90 是国标对住宅化妆台的要求，高于住宅其余场所的 Ra 80"
+    consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
+
+  - id: lkp-illuminance-corridor
+    name: 走廊与楼梯间照度标准值
+    number_class: analysis
+    value: {v: 100, unit: lx, plane: "地面"}
+    calibration: draft
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：走廊、楼梯间 地面 100lx，Ra 60；同表 电梯前厅 地面 75lx，Ra 60"
+    source_2: "旧版对照 GB 50034-2013 表5.1.1 走道、楼梯间 30lx（gbwindows.org 报批稿 PDF 原文直取）；条文说明 5.2.1 明确本次'提高了…走廊、楼梯间、电梯前厅的照度值要求'——30→100 是版本变化不是源冲突。转引 jsq3000.com/build/lighting-watt 同为 100lx"
+    acquired: run-2026-08-28-2
+    consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
+
+  - id: lkp-illuminance-dining
+    name: 餐厅照度标准值
+    number_class: analysis
+    value: {v: 150, unit: lx, plane: "0.75m 餐桌面"}
+    calibration: draft
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：餐厅 0.75m 餐桌面 150lx，Ra 80"
+    source_2: "GB 50034-2013 表5.1.1 餐厅 150lx（gbwindows.org 报批稿 PDF 原文直取）——两版同值"
+    acquired: run-2026-08-28-2
+    note: "参考平面口径=餐桌面（0.75m），非地面、非一般水平面——餐桌吊灯的照度校核以此面为准（见 lkp-pendant-drop-dining）"
+    consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
 
   - id: lkp-cct-living
     name: 起居与卧室色温
@@ -75,8 +124,8 @@ items:
     number_class: selection
     value: {min: 90, unit: Ra}
     calibration: draft
-    source: "行业通行；内部规范 §5.1。注：GB 50034-2013 住宅底线为 Ra80，本值 90 是高于国标的品质档选择（run-2026-08-27 查明国标底线）。Ra90 可得性已核（run-2026-08-28，两源）：欧普皓系列 Ra90 在售（vmall.com/product/10086627128138）；参数科普以 Ra≥90 为及格线（digital.it168.com/a2026/0713/6940/000006940354.shtml）"
-    acquired: run-2026-08-28
+    source: "★原文直取 GB/T 50034-2024 表5.2.1（run-2026-08-28-2，zcsys.ncepu.edu.cn/docs/2025-01/d5c197c2837e4892ac7d02faae298500.pdf）：住宅起居室/卧室/餐厅/厨房/卫生间一般活动 Ra 80；卫生间化妆台 Ra 90；走廊楼梯间与电梯前厅 Ra 60。故本值 Ra≥90 在多数场所是**高于国标**的品质档选择，仅在化妆台一处与国标要求重合。GB 50034-2013 同为 Ra80 底线（run-2026-08-27 已查明）。Ra90 可得性已核（run-2026-08-28，两源）：欧普皓系列 Ra90 在售（vmall.com/product/10086627128138）；参数科普以 Ra≥90 为及格线（digital.it168.com/a2026/0713/6940/000006940354.shtml）"
+    acquired: run-2026-08-28-2
     consumers: [art-purchase-checklist]
 
   - id: lkp-beam-accent
@@ -94,6 +143,8 @@ items:
     number_class: selection
     value: {min: 700, max: 800, unit: mm}
     calibration: draft
-    source: "行业通行"
-    source_pending: "人因工程数据源 —— 需定源"
+    source: "行业通行（无外部标准源）。run-2026-08-28-2 取证结论：**未取到可定位依据**，且公开源彼此不一致——设计本 ask.shejiben.com/wenda/803239（吊灯与餐桌相距约 550-600mm）/ 百安居 bthome.com/zixun/3642 与尚美饰家 m.smsj.com/strategy/66914-23545（600-800mm）/ 知乎 zhuanlan.zhihu.com/p/132415199（另一档）——三档口径互不重叠，按规则 4.16① 挂冲突不采，value 不动。唯一可定位旁证：GB/T 50034-2024 表5.2.1 餐厅参考平面为 '0.75m 餐桌面'、150lx（原文直取），只锚住照度校核面，锚不住吊灯下沿高度"
+    source_pending: "人因工程数据源仍未定源。已排除：GB/T 50034-2024 全文（155 页原文已解析，无灯具悬挂高度条文，仅 §6/§附录 涉及计算高度）。下轮候选：《建筑设计资料集》（页码级可定位）、JGJ/T 367-2015《住宅室内装饰装修设计规范》、灯具厂商安装说明书 ≥2 源"
+    conflict: true       # 规则 4.16①：源间不一致，不进 release
+    acquired: run-2026-08-28-2
     consumers: [art-purchase-checklist]

@@ -1,6 +1,9 @@
 # attribute 形态 · 材质属性卡
 # 存储形态：attributes 表 entity_type + JSONB 属性包（规则 4.12），不按实体类建表
-# ★ 这是图第 3 节点名的"材质属性表"——全部条目待外部指标接入，现为结构占位
+# ★ 这是图第 3 节点名的"材质属性表"
+# run-2026-08-28-2：三条的**检测标准号**已定位（GB/T 3324-2024 表4/表5 原文直取、GB/T 44309-2024 岩板、
+# GB/T 23266-2009 陶瓷板全文、GB/T 21196.2-2007 马丁代尔、GB/T 3920-2008 耐摩擦色牢度、QB/T 1952.1-2023 沙发）。
+# ★ 但仍全部 draft：标准给的是**合格底线**，不是**材质属性值**——这两者是不同口径，见各条 source_pending。
 domain: material
 form: attribute
 entity_type: material
@@ -14,11 +17,26 @@ attribute_schema:      # 该 entity_type 的属性 JSONSchema 草案（定稿后
   aging_2y: {type: string, desc: "两年后的样子（★经验条目，恒 draft，只能降档呈现）"}
 items:
   - {id: attr-material-oak-open-lacquer, name: 白橡开放漆, entity_type: material, calibration: draft,
-     props: {care_cycle: "木纹缝易存油污，需定期清理", eco_grade: null, aging_2y: null},
-     source_pending: "厂商公开参数 + 涂装工艺标准，≥2 源交叉验证"}
+     props: {abrasion: "漆膜耐磨性 应不低于 3 级（GB/T 3324-2024 表4 序号6；试验方法 GB/T 4893.8-2023）",
+             moisture: "漆膜耐湿热 应不低于 3 级（GB/T 3324-2024 表4 序号2；GB/T 4893.2-2020）",
+             care_cycle: "木纹缝易存油污，需定期清理（★经验条目，无外部源）",
+             eco_grade: null, aging_2y: null},
+     source: "★原文直取 GB/T 3324-2024《木家具通用技术条件》表4 木制件表面理化性能（2024-10-26 发布 / 2025-05-01 实施；标准全文 PDF 31 页 www.fjsec.com/upload/content/file/2025/20250901141230_6181.pdf）——漆膜 9 项：1 耐液性≥3级、2 耐湿热≥3级、3 耐干热≥3级、4 附着力≥3级、5 耐冷热温差 无鼓泡裂缝明显失光、6 耐磨性≥3级、7 抗冲击≥4级、8 耐黄变 灰度卡≥4级、9 耐冷热循环 无裂缝开裂起皱鼓泡。试验方法标准：GB/T 4893.1—2021 耐冷液 / .2—2020 耐湿热 / .3—2020 耐干热 / .4—2023 附着力交叉切割 / .7—2013 耐冷热温差 / .8—2023 耐磨性 / .9—2013 抗冲击",
+     source_2: "标准识别与修订项交叉：CTI 华测 cti-cert.com/new/32052.html、山东省产品质量检验研究院 sdzjy.com.cn/index.php?c=article&id=1703（GB/T 3324-2024 解读）；文内自证——修订说明 g) 载明本次仅'更改了漆膜抗冲击性能要求（见表4 序号7）'，故序号 1-6、8、9 与 2017 版同值",
+     source_pending: "★口径限制：以上是**国标合格底线**（对全体木家具的最低要求），不是白橡开放漆这一材质的实测属性值。材质级实测（开放漆木纹缝耐污、白橡本体硬度/耐划痕）仍需厂商公开检测报告 ≥2 源。另注 GB/T 3324-2024 §5.5.1 明示木蜡油/传统揩漆/传统烫蜡等特殊工艺不适用表4",
+     acquired: run-2026-08-28-2}
   - {id: attr-material-sintered-stone, name: 哑光岩板, entity_type: material, calibration: draft,
-     props: {abrasion: null, stain_resistance: null, moisture: null},
-     source_pending: "岩板检测指标标准 —— 需定标准号"}
+     props: {abrasion: "有釉表面耐磨性等级，GB/T 3810.7 测定；**陶瓷板口径**底线：地面用有釉陶瓷板 应不小于 3 级（转数 750 转）——GB/T 23266-2009 §5.5",
+             stain_resistance: "耐污染性等级，GB/T 3810.14 测定；**陶瓷板口径**底线：有釉陶瓷板 应不低于 3 级——GB/T 23266-2009 §5.11（无釉板只报告等级）",
+             moisture: "吸水率，GB/T 3810.3 真空法测定；**陶瓷板口径**：瓷质板 平均值 E≤0.5%、单值 E≤0.6%——GB/T 23266-2009 §4.1/§5.3"},
+     source: "标准号已定（本轮目标达成）：GB/T 44309-2024《陶瓷岩板》（2024-08-23 发布 / 2025-03-01 实施，由 T/CBCSA 40-2021 升级；ndls.org.cn/standard/detail/e1edf5d105af7259d368b82b7df483b9）——规定指标：表面质量、尺寸允许偏差、吸水率、破坏强度、断裂模数、弹性模量、剪切强度、线性热膨胀系数、湿膨胀、抗热震性、抗釉裂性、抗冻性、耐磨性、莫氏硬度、耐化学腐蚀性、耐污染性、干态静摩擦系数、放射性核素限量；定义 3.1 '用于家居的台面板和饰面板…'，4.2 上表面面积不小于 1.62 m²（guifanku.com/876377.html 前 5.2 节可见）",
+     source_2: "props 内数值来自 GB/T 23266-2009《陶瓷板》**全文原文转载**（fjlaa.com/newsshow.asp?id=8955，含条文号 4.1/5.3/5.5/5.11/6.4-6.6）；指标与引用标准清单经 antpedia.com/standard/5868171-1 交叉；团标 T/FCCI 010-2024《岩板》（ndls.org.cn）同样引 GB/T 3810.3/.6/.7 作试验方法",
+     source_pending: "★两处口径缺口：①GB/T 44309-2024 的**数值要求表**未取到（guifanku 预览止于 5.2 尺寸偏差，其余在登录墙；工标库/国家数字标准馆为付费）——现填值是**陶瓷板（GB/T 23266-2009）**口径底线，不是岩板口径，禁当岩板指标引用；②'哑光'是表面工艺，其光泽度/防滑/易清洁差异无标准值，需厂商检测报告 ≥2 源",
+     acquired: run-2026-08-28-2}
   - {id: attr-material-cat-proof-fabric, name: 猫抓布, entity_type: material, calibration: draft,
-     props: {abrasion: "马丁代尔转数待取", care_cycle: null},
-     source_pending: "纺织品耐磨（马丁代尔）与色牢度标准 —— 需定标准号 + 厂商参数"}
+     props: {abrasion: "马丁代尔法耐磨（试样破损法）转数，试验方法 GB/T 21196.2-2007；**转数阈值未取到**",
+             care_cycle: null},
+     source: "检测标准号已定（本轮目标达成）：耐磨 GB/T 21196.2-2007《纺织品 马丁代尔法织物耐磨性的测定 第2部分：试样破损的测定》（codeofchina.com/standard/GBT21196.2-2007.html；同系列 .1 试验仪、.3 质量损失）；耐摩擦色牢度 GB/T 3920-2008《纺织品 色牢度试验 耐摩擦色牢度》（2008-08-06 发布 / 2009-06-01 实施，代替 GB/T 3920-1997；**国家标准全文公开系统** openstd.samr.gov.cn/bzgk/gb/newGbInfo?hcno=B3A328DB1DC2961307967A5B7210AD62——干/湿摩擦各一次，往复 10 次、行程 104±3mm、压力 9±0.2N）",
+     source_2: "★原文直取 GB/T 3324-2024 表5 其他材料部件表面理化性能（www.fjsec.com/upload/content/file/2025/20250901141230_6181.pdf）——软包层（纺织面料/皮革）：耐干摩擦 ≥4 级、耐湿摩擦 ≥3 级、纺织面料 pH 4.0~7.5、皮革 pH 3.5~6.0、人造革 pH 4.0~9.0、真皮涂层黏着牢度 ≥2.5 N/10mm。沙发口径另有 QB/T 1952.1-2023《软体家具 沙发》（2024-02-01 实施，ndls.org.cn/standard/detail/4391898587f604d531dc28e9bc6bbd0e），新增纺织面料耐磨性与水洗/干洗色牢度要求",
+     source_pending: "★数值缺口：①猫抓布（聚酯超细纤维绒面）的马丁代尔**转数**厂商公开值未取到（需 ≥2 源）；②QB/T 1952.1-2023 面料耐磨的具体转数要求未取到（标准正文在付费墙）。★口径：GB/T 3324-2024 表5 是**木家具软包层**口径，沙发应按 QB/T 1952.1 口径，两者禁混用",
+     acquired: run-2026-08-28-2}

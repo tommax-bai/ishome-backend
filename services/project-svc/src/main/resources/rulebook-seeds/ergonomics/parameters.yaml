@@ -11,8 +11,12 @@ items:
   - {id: lkp-counter-height, name: 橱柜台面高, number_class: selection, formula: "主厨身高/2 + [50,100]", unit: mm, consumers: [art-ergonomics-chapter, art-purchase-checklist]}
   - {id: lkp-wall-cabinet-bottom, name: 吊柜底沿距台面, number_class: selection, value: {min: 600, max: 700}, unit: mm}
   - {id: lkp-sink-depth, name: 水槽深度, number_class: selection, value: {min: 180, max: 220}, unit: mm}
-  - {id: lkp-desk-height, name: 书桌高, number_class: selection, value: {v: 720}, unit: mm, linked: lkp-chair-height}
-  - {id: lkp-chair-height, name: 座椅高, number_class: selection, value: {v: 450}, unit: mm}
+  - {id: lkp-desk-height, name: 书桌高, number_class: selection, value: {v: 720}, unit: mm, linked: lkp-chair-height,
+     source: "run-2026-08-28-2 定源（**部分**）：GB/T 3326-2016《家具 桌、椅、凳类主要尺寸》（2016-12-13 发布 / 2017-07-01 实施，代替 GB/T 3326-1997；术语含'桌面高/座高/中间净空高'；antpedia.com/standard/8422498-1、yjser.com/a/jiancebiaozhun/3614）——标准号与量的定义已可定位，**数值表未取到**（在付费墙内）。旧版单源旁证：GB/T 3326-1997 桌面高 680~760mm（huida18.com/standard/12331、beitest.com/zixunxinxi/biaozhun/15281）——720 落在该带内，但单源不足以采",
+     acquired: run-2026-08-28-2}
+  - {id: lkp-chair-height, name: 座椅高, number_class: selection, value: {v: 450}, unit: mm,
+     source: "同 lkp-desk-height：GB/T 3326-2016 标准号已定位，数值表未取到。旧版单源旁证：GB/T 3326-1997 椅座面高上限 460mm、桌椅高差 250~320mm——450 与 720 的高差 270mm 落在该带内，但单源不足以采",
+     acquired: run-2026-08-28-2}
   - {id: lkp-bed-height, name: 床面高, number_class: selection, value: {min: 450, max: 500}, unit: mm}
   - {id: lkp-wardrobe-rod, name: 衣柜挂杆高, number_class: selection, formula: "身高 × 1.2", unit: mm}
   - {id: lkp-switch-height, name: 开关高, number_class: selection, value: {v: 1300}, unit: mm}
