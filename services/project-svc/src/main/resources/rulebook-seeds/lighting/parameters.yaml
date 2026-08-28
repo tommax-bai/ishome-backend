@@ -12,9 +12,8 @@ items:
     value: {min: 3, max: 5, unit: "×环境照度"}
     formula: "重点照度 = 环境照度 × [3,5]"
     calibration: draft
-    source: "GB 50034-2013 表5.2.1（住宅：起居室一般活动 100lx / 书写阅读 300lx，0.75m 水平面）——300/100=3× 即本倍数下界；上界 5× 为行业通行"
-    source_pending: "GB 50034-2024（2024-08-01 实施）住宅表 —— 需核对新版数值是否变化"
-    acquired: run-2026-08-27
+    source: "GB 50034-2013 表5.2.1（住宅：起居室一般活动 100lx / 书写阅读 300lx，0.75m 水平面）——300/100=3× 即本倍数下界；上界 5× 为行业通行。2024 版核对（run-2026-08-28）：起居室两值不变，3× 下界锚不动；注意 2024 版为 GB/T 推荐性标准（原 GB 强制性废止）"
+    acquired: run-2026-08-28
     consumers: [art-lighting-chapter, art-purchase-checklist]
 
   - id: lkp-illuminance-living
@@ -22,9 +21,18 @@ items:
     number_class: analysis
     value: {general: 100, reading: 300, unit: lx, plane: "0.75m 水平面"}
     calibration: draft              # source 已可定位，待核验跑批后转 calibrated
-    source: "GB 50034-2013 表5.2.1（jianbiaoku.com/webarbs/book/49/1044521）；GB 50034-2004 同值（cabr-th.com PDF）——两源一致"
-    source_pending: "GB 50034-2024 新版核对"
-    acquired: run-2026-08-27
+    source: "GB 50034-2013 表5.2.1（jianbiaoku.com/webarbs/book/49/1044521）；GB 50034-2004 同值（cabr-th.com PDF）；GB/T 50034-2024 同值（jsq3000.com/build/lighting-watt 引 2024 表 + zhuanlan.zhihu.com/p/720498962 经搜索摘要）——三版同值。2024 版性质变化：GB 强制 → GB/T 推荐（2024-08-01 实施）"
+    acquired: run-2026-08-28
+    consumers: [art-lighting-chapter]
+
+  - id: lkp-illuminance-bedroom
+    name: 卧室照度标准值
+    number_class: analysis
+    value: {general: 75, reading: 200, unit: lx, plane: "0.75m 水平面（床头阅读为混合照明）"}
+    calibration: draft
+    source: "GB/T 50034-2024 住宅表（jsq3000.com/build/lighting-watt 引表 + zhuanlan.zhihu.com/p/720498962 经搜索摘要，两源同值）；旧版对照：GB 50034-2013 床头阅读 150lx（gbwindows.org 报批稿 PDF 表5.1.1 原文直取）——2024 版床头阅读 150→200 是住宅表主要变化"
+    source_pending: "GB/T 50034-2024 原文直取核对（当前经转引；厨房操作台 300/走廊 100/镜前 300 等单源数值未采，见 run-2026-08-28）"
+    acquired: run-2026-08-28
     consumers: [art-lighting-chapter]
 
   - id: lkp-cct-living
@@ -32,8 +40,8 @@ items:
     number_class: selection         # 选型数字：可上清单，禁上 prec-schematic 图
     value: {v: 3000, unit: K}
     calibration: draft
-    source: "行业通行；内部规范 §5.1"
-    source_pending: "厂商公开参数交叉验证（≥2 源，规则 4.16）"
+    source: "行业通行；内部规范 §5.1。厂商在售验证（run-2026-08-28，两源）：欧普皓系列筒射灯 3000K 在售（vmall.com/product/10086627128138）；参数科普 3000K 及以下适居室（digital.it168.com/a2026/0713/6940/000006940354.shtml）。商品级规格随货架打标回流（规则 5.3）"
+    acquired: run-2026-08-28
     consumers: [art-lighting-chapter, art-purchase-checklist]
 
   - id: lkp-cct-task
@@ -41,8 +49,8 @@ items:
     number_class: selection
     value: {v: 4000, unit: K}
     calibration: draft
-    source: "行业通行；内部规范 §5.1"
-    source_pending: "厂商公开参数交叉验证"
+    source: "行业通行；内部规范 §5.1。厂商在售验证（run-2026-08-28，两源）：欧普皓系列 4000K 在售（vmall.com/product/10086627128138）；参数科普 4000K 中性光适厨卫操作（digital.it168.com/a2026/0713/6940/000006940354.shtml）"
+    acquired: run-2026-08-28
     consumers: [art-lighting-chapter, art-purchase-checklist]
 
   - id: lkp-cct-night
@@ -67,8 +75,8 @@ items:
     number_class: selection
     value: {min: 90, unit: Ra}
     calibration: draft
-    source: "行业通行；内部规范 §5.1。注：GB 50034-2013 住宅底线为 Ra80，本值 90 是高于国标的品质档选择——属选型策略，须以厂商参数核实 Ra90 产品市场可得（run-2026-08-27 查明国标底线）"
-    source_pending: "厂商公开参数交叉验证（Ra90 可得性）"
+    source: "行业通行；内部规范 §5.1。注：GB 50034-2013 住宅底线为 Ra80，本值 90 是高于国标的品质档选择（run-2026-08-27 查明国标底线）。Ra90 可得性已核（run-2026-08-28，两源）：欧普皓系列 Ra90 在售（vmall.com/product/10086627128138）；参数科普以 Ra≥90 为及格线（digital.it168.com/a2026/0713/6940/000006940354.shtml）"
+    acquired: run-2026-08-28
     consumers: [art-purchase-checklist]
 
   - id: lkp-beam-accent
@@ -76,8 +84,9 @@ items:
     number_class: selection
     value: {min: 15, max: 24, unit: "°"}
     calibration: draft
-    source: "行业通行；内部规范 §5.1"
-    source_pending: "厂商公开参数交叉验证"
+    source: "行业通行；内部规范 §5.1。部分核（run-2026-08-28）：24°/36° 为市售通行档（欧普皓系列 vmall.com/product/10086627128138；选购攻略 zhuanlan.zhihu.com/p/571943842 24-36° 洗墙/重点、60° 基础）——24° 上界成立"
+    source_pending: "15° 深防眩段厂商规格未单独核——商品级随货架打标"
+    acquired: run-2026-08-28
     consumers: [art-purchase-checklist]
 
   - id: lkp-pendant-drop-dining

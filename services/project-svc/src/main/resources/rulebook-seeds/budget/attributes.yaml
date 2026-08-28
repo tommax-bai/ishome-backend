@@ -43,6 +43,16 @@ items:
     source_2: "新浪财经 k.sina.cn/article_7857141524_1d452771401901o962（2025 定制成本；实例 30㎡ 柜体中档约 4.2 万 ≈ 1400 元/投影㎡，与档表自洽）"
     note: "单位从'延米'改为源生口径'投影㎡'——延米换算依赖柜高假设，不做推导（规则 4.16 可定位原则）；★ 总价主驱动项，第二优先补城市档"
 
+  - id: attr-price-hydro-labor-sqm
+    name: 水电改造人工费（按建筑面积计价口径）
+    calibration: draft
+    props: {unit: ㎡, price_range: [25, 68], city_tier: 分档见 breakdown, confidence: low,
+            effective_from: 2026-08-28, effective_to: 2026-11-28,
+            breakdown: {一线: [60, 68], 二线: [35, 58], 三四线: [25, 50]}}
+    source: "图纸之家 tuzhizhijia.com/fangchan/8468（2023 全国 43 份水电报价：上海 60/北京 68/深广 68/天津 58/长沙武汉 55/渝蓉 35/贵州 25-35/金华 50/杭州 40-50）"
+    source_2: "尚美饰家 m.smsj.com/strategy/30877-23547（全国 37 地水电施工队价格）+ 搜狐 m.sohu.com/a/1025834698（2026 报价，墙面打孔另算约 50 元/个）"
+    note: "★ 城市档首次取得（run-2026-08-28）——一线约为三四线 2-3 倍。与 attr-price-electrical-point 点位口径并存，禁跨口径换算；43 份样本跨 2023-2026，置信 low"
+
   - id: attr-price-wall-paint
     name: 墙面乳胶漆涂刷
     calibration: draft
