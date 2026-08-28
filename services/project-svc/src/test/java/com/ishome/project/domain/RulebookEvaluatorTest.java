@@ -8,6 +8,7 @@ import com.ishome.project.domain.rulebook.AnchorPresentation;
 import com.ishome.project.domain.rulebook.AnchorPresentationPolicy;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
 import com.ishome.project.domain.rulebook.CheckAsset;
+import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.EvaluationInput;
 import com.ishome.project.domain.rulebook.GapRecord;
 import com.ishome.project.domain.rulebook.ParameterAsset;
@@ -50,6 +51,23 @@ class RulebookEvaluatorTest {
           "分析级结论禁弱词（规则 5.9）",
           "规范规则 5.9",
           List.of(),
+          List.of(),
+          "active",
+          1);
+
+  /** 判官层判据（规则 4.17）：反例样例挂 cr- 之下、首批观察态——随包下发才谈得上判官在成文线可用。 */
+  private static final CheckAsset JUDGE_CHECK =
+      new CheckAsset(
+          "cr-fabricated-fact",
+          "semantic_judge",
+          List.of("正文"),
+          null,
+          "关于这家人的事实只能来自匿名画像",
+          "编造输入之外的家庭事实",
+          "规范规则 4.3 + 图 v0.2 §0",
+          List.of(),
+          List.of(new CheckExample("你和你太太", "画像里没有家庭构成信息", "两个人同时用的时候")),
+          "observing",
           1);
 
   private static final ReleaseSnapshot ERGONOMICS =
@@ -64,7 +82,7 @@ class RulebookEvaluatorTest {
               param("lkp-mystery", "无可执行形态", null, "神秘公式", "draft"),
               param("lkp-empty", "空定义", null, null, "draft")),
           List.of(PERSONA),
-          List.of(CHECK),
+          List.of(CHECK, JUDGE_CHECK),
           List.of("依据", "综合考量"));
 
   private static final EvaluationInput INPUT =
@@ -194,7 +212,10 @@ class RulebookEvaluatorTest {
         evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
 
     assertEquals(List.of(PERSONA), pkg.personasByDomain().get("ergonomics"));
-    assertEquals(List.of(CHECK), pkg.checksByDomain().get("ergonomics"));
+    // 判官层判据同样随包（自包含）：反例样例与 status 一并下发，成文线才拼得出判官 prompt
+    assertEquals(List.of(JUDGE_CHECK, CHECK), pkg.checksByDomain().get("ergonomics"));
+    assertEquals("你和你太太", pkg.checksByDomain().get("ergonomics").get(0).examples().get(0).bad());
+    assertEquals("observing", pkg.checksByDomain().get("ergonomics").get(0).status());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
   }
 

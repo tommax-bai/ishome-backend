@@ -110,10 +110,14 @@ def rows():
                     consumers=J(m.get("consumers", []))))
             elif form == "check":
                 refs = [m["max_from"]] if m.get("max_from") else []
+                # status 缺省 active：不写 status 的都是已编译好的规则层确定性机检，此刻就在
+                # reportgen gate 里拦截，表要照实说（状态真相在表）。判官判据必须显式写
+                # observing，核验跑批禁止种子预置 active（规则 4.17 门禁二，verify_seeds 拦）。
                 yield ("checks", ctx, aid, dict(
                     asset_id=aid, domain=domain, check_type=m["type"], scope=J(m.get("scope", [])),
                     pattern=m.get("pattern"), requirement=m.get("require"), message=m["message"],
-                    decided_by=m["decided_by"], threshold_refs=J(refs)))
+                    decided_by=m["decided_by"], threshold_refs=J(refs),
+                    examples=J(m.get("examples", [])), status=m.get("status", "active")))
 
 def main():
     validate = "--validate" in sys.argv

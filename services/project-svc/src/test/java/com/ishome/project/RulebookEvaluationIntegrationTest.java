@@ -12,6 +12,8 @@ import com.github.f4b6a3.ulid.UlidCreator;
 import com.ishome.project.application.ReportEvaluationAppService;
 import com.ishome.project.domain.rulebook.AnchorPresentation;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
+import com.ishome.project.domain.rulebook.CheckAsset;
+import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.EvaluationInput;
 import com.ishome.project.domain.rulebook.ReleaseNotFoundException;
 import com.ishome.project.domain.rulebook.ReleaseRef;
@@ -94,7 +96,13 @@ class RulebookEvaluationIntegrationTest {
            "banned_terms":{"domain_extra":["人体工学"]},"version":1}],
           "checks":[{"asset_id":"cr-weak-words","check_type":"regex_deny","scope":["正文"],
            "pattern":"可能|建议考虑|也许","requirement":null,"message":"分析级结论禁弱词（规则 5.9）",
-           "decided_by":"规范规则 5.9","threshold_refs":[],"version":1}],
+           "decided_by":"规范规则 5.9","threshold_refs":[],"examples":[],"status":"active","version":1},
+           {"asset_id":"cr-fabricated-fact","check_type":"semantic_judge","scope":["正文"],
+           "pattern":null,"requirement":"关于这家人的事实只能来自匿名画像","message":"编造输入之外的家庭事实",
+           "decided_by":"规范规则 4.3 + 图 v0.2 §0","threshold_refs":[],
+           "examples":[{"bad":"你和你太太","why":"画像里没有家庭构成信息","fixed":"两个人同时用的时候"},
+                       {"bad":"三件不齐者","why":"","fixed":"投影时丢弃"}],
+           "status":"observing","version":1}],
           "vocabularies":[{"asset_id":"vocab-banned-methodology","kind":"banned_term",
            "terms":{"methodology":["依据","综合考量"]},"version":1}]}}
         """);
@@ -149,8 +157,12 @@ class RulebookEvaluationIntegrationTest {
     // 自包含载荷（图 v0.2 §0：成文线不回查任何库）——persona 全文、cr- 判据、禁词随包
     assertEquals("你在为这一家人校核尺寸。", pkg.personasByDomain().get("ergonomics").get(0).identity());
     assertEquals(
-        List.of("cr-weak-words"),
+        List.of("cr-fabricated-fact", "cr-weak-words"),
         pkg.checksByDomain().get("ergonomics").stream().map(c -> c.assetId()).toList());
+    // 判官层判据的投影（规则 4.17）：反例样例与 status 随包下发；三件不齐的样例在投影时丢弃
+    CheckAsset judge = pkg.checksByDomain().get("ergonomics").get(0);
+    assertEquals("observing", judge.status());
+    assertEquals(List.of("你和你太太"), judge.examples().stream().map(CheckExample::bad).toList());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
     assertEquals(List.of(), pkg.withheldAnchors());
   }

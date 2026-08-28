@@ -26,8 +26,10 @@ UNITS = {"mm","m","K","Ra","°","lx","㎡","投影㎡","延米","延米/㎡","�
 # 可定位 = 外部形态（标准号/URL/域名/信息价）。内部引用（"内部规范 §x.x"）不算——
 # 经验条目借内部条文号伪装可核，正是规则 4.10b 要堵的路（首跑即误判过一批，故收紧）。
 LOCATOR = re.compile(r"GB[/T ]?\s?\d|JGJ\s?\d|https?://|\.com|\.cn|信息价")
+# check 入册状态（规则 4.17 门禁二；V4 迁移的 ck_checks_status 同集合）
+CHECK_STATUS = {"observing", "active", "retired"}
 
-errors, warns, eligible, conflicts = [], [], [], []
+errors, warns, eligible, conflicts, judges = [], [], [], [], []
 
 def load(path):
     with open(path, encoding="utf-8") as f:
@@ -78,6 +80,21 @@ for f, d in docs.items():
             if not merged.get("decided_by"): errors.append(f"{ctx}: check 缺 decided_by（规则 4.10b）")
             mf = merged.get("max_from")
             if mf and mf not in param_ids: errors.append(f"{ctx}: max_from 悬空 {mf}")
+            st = merged.get("status", "active")
+            if st not in CHECK_STATUS: errors.append(f"{ctx}: status 非法 [{st}]，取值 {sorted(CHECK_STATUS)}")
+            exs = merged.get("examples") or []
+            if not isinstance(exs, list): errors.append(f"{ctx}: examples 须为列表")
+            for k, ex in enumerate(exs if isinstance(exs, list) else []):
+                if not isinstance(ex, dict) or not all(
+                        isinstance(ex.get(f), str) and ex.get(f).strip() for f in ("bad", "why", "fixed")):
+                    errors.append(f"{ctx}: examples[{k}] 三件不齐（bad/why/fixed 均须非空文本）")
+            if merged.get("type") == "semantic_judge" and not exs:
+                errors.append(f"{ctx}: semantic_judge 判据无 examples——判官无据可依（规则 4.17）")
+            # 与"种子不得预置 calibrated"同构：拦截权只能由观察期数据授予，不能在种子里自己写上。
+            # 判官与写手同源，观察态（规则 4.17 入册门禁第二道）是唯一防漂移机制，绕不得。
+            if exs and st != "observing":
+                errors.append(f"{ctx}: 判官判据种子不得预置 status={st}（观察态是入册门禁第二道，规则 4.17）")
+            if exs: judges.append(f"{ctx} status={st} examples={len(exs)}")
             continue  # check 不进 calibration 状态机
         # 知识条目：4.10a 四项
         check_range(merged.get("value"), ctx)
@@ -105,4 +122,7 @@ for c in eligible: print("  ok ", c)
 if conflicts:
     print(f"== conflict 条目（源间不一致，不进 release，规则 4.16①）：{len(conflicts)}")
     for c in conflicts: print("  conflict ", c)
+if judges:
+    print(f"== 判官反例判据（样例只收真跑样本，禁想象填充，规范 v2.3 §12）：{len(judges)}")
+    for j in judges: print("  judge ", j)
 sys.exit(1 if errors else 0)

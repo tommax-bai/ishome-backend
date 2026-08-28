@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ishome.project.domain.port.ReleaseRepository;
 import com.ishome.project.domain.rulebook.CheckAsset;
+import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.ParameterAsset;
 import com.ishome.project.domain.rulebook.PersonaAsset;
 import com.ishome.project.domain.rulebook.ReleaseSnapshot;
@@ -97,9 +98,27 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("message").asText(""),
               node.path("decided_by").asText(""),
               toStringList(node.path("threshold_refs")),
+              examples(node.path("examples")),
+              // V4 之前发布的 release 快照没有 status 列：缺省读作 observing——判据的拦截权只能被
+              // 显式授予（规则 4.17 门禁二），老快照默认无拦截权是安全方向（少拦不多拦）
+              node.path("status").asText("observing"),
               node.path("version").asInt(1)));
     }
     return checks;
+  }
+
+  /** 判官反例样例：三件不齐的条目直接丢弃——半条样例教不出判据，留着只会让判官学歪（规则 4.17 种子集真实度=系统天花板）。 */
+  private List<CheckExample> examples(JsonNode node) {
+    List<CheckExample> examples = new ArrayList<>();
+    for (JsonNode item : node) {
+      String bad = item.path("bad").asText("");
+      String why = item.path("why").asText("");
+      String fixed = item.path("fixed").asText("");
+      if (!bad.isBlank() && !why.isBlank() && !fixed.isBlank()) {
+        examples.add(new CheckExample(bad, why, fixed));
+      }
+    }
+    return List.copyOf(examples);
   }
 
   /** vocabulary(kind=banned_term) 的 terms（类别 → 词列表）平铺去重排序——公共禁词已在发布时物化进本域快照。 */
