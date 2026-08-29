@@ -113,6 +113,17 @@ for f, d in docs.items():
         if ef and et and str(ef) > str(et): errors.append(f"{ctx}: effective 倒挂")
         u = merged.get("unit") or (merged.get("value") or {}).get("unit") if isinstance(merged.get("value"), dict) else merged.get("unit")
         if u and str(u) not in UNITS: errors.append(f"{ctx}: 单位不在白名单 [{u}]")
+        # 量纲必填（用户裁决 2026-08-29 晚，立案=lkp-tv-distance 正文渲出裸数无量纲）：
+        # 带数值或公式的资产须有单位；真正无量纲的显式 dimensionless: true 豁免——
+        # 豁免是声明"无单位是事实"，不是"忘了填"的同义词。
+        def _has_number(v):
+            if isinstance(v, bool): return False
+            if isinstance(v, (int, float)): return True
+            if isinstance(v, dict): return any(_has_number(x) for x in v.values())
+            if isinstance(v, list): return any(_has_number(x) for x in v)
+            return False
+        if not u and not merged.get("dimensionless") and (merged.get("formula") or _has_number(merged.get("value"))):
+            errors.append(f"{ctx}: 数值/公式资产缺 unit（量纲必填，裁决 2026-08-29 晚；真无量纲须显式 dimensionless: true）")
         for c in merged.get("consumers", []):
             ok = c in ARTS or c in check_ids or c.startswith("gen-") or c == "machine-check"
             if not ok: errors.append(f"{ctx}: consumers 悬空 [{c}]")

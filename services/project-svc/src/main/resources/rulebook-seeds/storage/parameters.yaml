@@ -6,10 +6,10 @@ items:
   - {id: lkp-storage-density-baseline, name: 收纳延米密度基准, number_class: analysis, value: {min: 0.25, max: 0.35}, unit: "延米/㎡",
      source: "内部规范 §5.7（基准值明确标注待校准）",
      source_pending: "★ 无外部真源。转正路径只能是埋点信号（用户实际反馈够不够）——规则 4.10a"}
-  - {id: lkp-storage-total-meters, name: 全屋收纳总延米, number_class: analysis, formula: "Σ 各柜体投影延米（从定稿平面 gen-evaluated 求得）"}
-  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, value: {v: 0.8, tolerance: 0.1},
+  - {id: lkp-storage-total-meters, name: 全屋收纳总延米, number_class: analysis, formula: "Σ 各柜体投影延米（从定稿平面 gen-evaluated 求得）", unit: 延米}
+  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, dimensionless: true, value: {v: 0.8, tolerance: 0.1},
      source: "行业通行（二八原则）", source_pending: "无外部标准，属经验条目"}
-  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, value: {hang: 0.5, fold: 0.3, drawer: 0.2},
+  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, dimensionless: true, value: {hang: 0.5, fold: 0.3, drawer: 0.2},
      source_pending: "随 Q-STORAGE 衣物量实测回流校准"}
   - {id: lkp-long-hang-height, name: 长衣区净高, number_class: selection, value: {min: 1400}, unit: mm,
      linked: [ergonomics/lkp-wardrobe-rod]}

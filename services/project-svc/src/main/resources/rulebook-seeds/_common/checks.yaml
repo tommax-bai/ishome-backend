@@ -32,6 +32,13 @@ items:
     message: "工程量纲未翻译（规则 2.3）"
     decided_by: "规范规则 2.3"
 
+  - id: cr-bound-word-before-placeholder
+    type: regex_deny
+    scope: [正文, 结论句]
+    pattern: "(不少于|不低于|不小于|不超过|不高于|不大于|至少|最少|最多)\\s*[（(]?\\{lkp-"
+    message: "占位符前禁边界词——单边界值的措辞（不低于/不超过）由渲染层按值形态出，文句再带一遍即叠字（真跑立案：「不少于不低于 750 mm」一册 7 处）"
+    decided_by: "用户裁决 2026-08-29 晚（单边界措辞归渲染层：边界语义在值里，只说一次）"
+
   - id: cr-no-position-number-on-schematic
     type: field_deny
     scope: [prec-schematic]

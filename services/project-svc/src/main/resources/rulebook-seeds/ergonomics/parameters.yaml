@@ -33,7 +33,7 @@ items:
   - {id: lkp-kitchen-u-gap, name: U型厨房两排间距, number_class: analysis, value: {min: 900, max: 1200}, unit: mm}
   - {id: lkp-toilet-center-offset, name: 马桶中线距侧墙, number_class: analysis, value: {min: 350}, unit: mm}
   - {id: lkp-shower-clear, name: 淋浴房内空, number_class: analysis, value: {min_w: 800, min_d: 800}, unit: mm}
-  - {id: lkp-tv-distance, name: 电视观看距离, number_class: analysis, formula: "屏高 × [3,4]"}
+  - {id: lkp-tv-distance, name: 电视观看距离, number_class: analysis, formula: "屏高 × [3,4]", unit: mm}
   - {id: lkp-entry-cabinet-depth, name: 玄关柜深, number_class: analysis, value: {min: 350}, unit: mm}
   - {id: lkp-fridge-vent, name: 冰箱散热净距, number_class: analysis, value: {min: 50}, unit: mm}
   - {id: lkp-work-triangle, name: 厨房工作三角周长, number_class: analysis, value: {min: 3.6, max: 6.6}, unit: m}

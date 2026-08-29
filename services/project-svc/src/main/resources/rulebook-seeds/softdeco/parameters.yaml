@@ -3,7 +3,7 @@ form: parameter
 release: null
 default_calibration: draft
 items:
-  - {id: lkp-color-ratio, name: 主辅点缀配色比例, number_class: analysis, value: {main: 0.6, secondary: 0.3, accent: 0.1},
+  - {id: lkp-color-ratio, name: 主辅点缀配色比例, number_class: analysis, dimensionless: true, value: {main: 0.6, secondary: 0.3, accent: 0.1},
      source: "行业通行（60-30-10）", source_pending: "无外部标准，属经验条目"}
   - {id: lkp-color-main-max, name: 全屋主色数量上限, number_class: analysis, value: {max: 3}, unit: 种,
      source: "内部规范 §5.8（经验条目）"}
