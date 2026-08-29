@@ -52,12 +52,23 @@ for f in files:
     try: docs[f] = load(f)
     except Exception as e: errors.append(f"{f}: YAML 解析失败 {e}"); continue
 
-# 收集 id
+# 收集 id。落点（lkp-）有**两个来源**，与求值线一致：
+#   ① parameters 表的 lkp- 资产；
+#   ② attributes 里 entity_type=work_item 的单价资产**投影**（attr-price-x → lkp-price-x，
+#      规则 5.15 造价章；投影规则的权威实现在 RulebookEvaluator#anchorIdOf，此处按同一条规则镜像）。
+# 不镜像就会把 persona 里指向单价落点的 requires 全判成悬空——而它们在运行时是真实存在的落点。
+# 镜像即两处各写一遍同一条规则（Java 求值线 / Python 核验），改投影规则时两处都要动：
+# 两条线本就一个跑运行时一个跑编译期，没有共享代码的位置，宁可显式重复也不发明一层配置。
 for f, d in docs.items():
-    for it in (d or {}).get("items", []):
+    d = d or {}
+    entity_type_of_doc = d.get("entity_type")
+    for it in d.get("items", []):
         aid = it.get("id","")
         if aid.startswith("lkp-"): param_ids.add(aid)
         if aid.startswith("cr-"): check_ids.add(aid)
+        # 文档级 entity_type 优先，与 import_seeds 的取法逐字一致
+        if (entity_type_of_doc or it.get("entity_type")) == "work_item" and aid.startswith("attr-"):
+            param_ids.add("lkp-" + aid[len("attr-"):])
 
 for f, d in docs.items():
     rel = os.path.relpath(f, SEEDS); d = d or {}

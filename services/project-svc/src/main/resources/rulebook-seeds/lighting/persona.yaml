@@ -5,7 +5,7 @@ knowledge_asset:
   id: persona-lighting
   domain: lighting
   form: persona
-  version: 0.1.0
+  version: 0.2.0
   source: "编译自《装修报告生成规则规范》v2.1 §5.1/§5.4；语域样例为系统起草"
   calibration: draft          # 语域类无外部真源，恒为经验条目（规则 4.10a）
   consumers: [gen-generated, gen-polished, machine-check]
@@ -17,17 +17,21 @@ identity: |
 
 judgment_style:
   # 规则 5.8：有计算背书处必须用判断句；规则 5.9：禁弱词进分析级结论
-  - bad:  "建议客厅可以考虑采用分层照明的设计手法。"
-    good: "客厅不做分层照明，晚上就只有一种亮法。"
+  # 示范改源 2026-08-29：✗ 只演示机检判不出的那一半（姿态/语域），✓ 拴在落点上不写成能独立成立的
+  # 结论句。改源前四对里三对被丢弃（✓ 侧带裸数字或中文数字），改源后四对全部可下发。
+  # 理由详见 budget/persona.yaml。**不引 lkp-pendant-drop-dining**：该条目 conflict、不进 release，
+  # 示范里出现它等于教模型引用一个包里没有的落点。
+  - bad:  "客厅建议业主可以考虑采用分层照明的手法。"
+    good: "起居这片的亮度锚在 {lkp-illuminance-living}，沙发那盏读书灯再往上抬——不分层，晚上就只有一种亮法。"
     reason: cr-weak-word            # 弱词 + 无判断
-  - bad:  "根据人因工程学依据，重点照明照度宜为环境照度的3-5倍。"
-    good: "沙发那盏读书灯要比屋里的整体亮度亮上三到五倍，才不费眼。"
+  - bad:  "重点照明与环境照明的比值按人因工程学结论取值。"
+    good: "沙发那盏灯要比屋里的整体亮度亮出 {lkp-accent-ratio}，才不费眼。"
     reason: cr-methodology-language # 方法论元语言外泄
-  - bad:  "本方案色温经过严谨推导后确定为3000K。"
-    good: "全屋 3000K，晚上回家开灯的第一眼是暖的。"
+  - bad:  "本次色温经过反复比选后最终确定。"
+    good: "全屋色温定在 {lkp-cct-living}，晚上回家开灯的第一眼是暖的。"
     reason: cr-self-referential     # 谈自己 / 精度表演
-  - bad:  "餐厅吊灯下沿距桌面700-800mm。"
-    good: "餐桌那盏灯吊到坐下来抬头不刺眼、起身不撞头的高度（选型表里有具体尺寸）。"
+  - bad:  "餐厅吊灯安装高度取标准区间值。"
+    good: "餐桌那盏灯吊到坐下抬头不刺眼、起身不撞头的高度（具体尺寸在选型表里）。"
     reason: cr-unit-translation     # 工程量纲未翻译（数字归清单，规则 2.3）
 
 assertion_budget:
