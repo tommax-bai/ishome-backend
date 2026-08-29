@@ -17,6 +17,9 @@ import java.util.TreeMap;
  * <p>求出值之后过两道判定，都在生产侧做完、结果随包下发（成文线只执行不重判）：①**语域**（{@link AnchorPresentationPolicy}，规则
  * 4.10a/5.8）——过没过可核性门决定能不能作判断句支点；②**标注**（{@link AnchorProvenancePolicy}，规则 4.10c，v2.4
  * 新增）——未过门或已过期的落点随带 {@link AnchorProvenance}， 成文线据此在同页挂依据标注，不标即违规。
+ *
+ * <p>v2.4 裁决 2026-08-29 起**没有第三种去向**：求出来的值一律下发（{@code withheldAnchors} 恒空）。 隐藏这一档整体作废的理由见 {@link
+ * AnchorPresentationPolicy} 与规范 §14.9。
  */
 public final class RulebookEvaluator {
 
@@ -49,7 +52,6 @@ public final class RulebookEvaluator {
     List<ReleaseSnapshot> ordered =
         snapshots.stream().sorted(Comparator.comparing(ReleaseSnapshot::domain)).toList();
     List<ReportAnchor> anchors = new ArrayList<>();
-    List<WithheldAnchor> withheld = new ArrayList<>();
     List<GapRecord> gaps = new ArrayList<>();
     Map<String, List<PersonaAsset>> personas = new TreeMap<>();
     Map<String, List<CheckAsset>> checks = new TreeMap<>();
@@ -65,19 +67,10 @@ public final class RulebookEvaluator {
           snapshot.checks().stream().sorted(Comparator.comparing(CheckAsset::assetId)).toList());
       bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
       for (ParameterAsset parameter : snapshot.parameters()) {
-        resolve(
-            parameter,
-            snapshot.releaseTag(),
-            input,
-            entitlement,
-            evaluatedOn,
-            anchors,
-            withheld,
-            gaps);
+        resolve(parameter, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
       }
     }
     anchors.sort(Comparator.comparing(ReportAnchor::lkpId));
-    withheld.sort(Comparator.comparing(WithheldAnchor::lkpId));
     gaps.sort(Comparator.comparing(GapRecord::lkpId));
     return new ReportDataPackage(
         evaluatedOn,
@@ -85,7 +78,8 @@ public final class RulebookEvaluator {
         ordered.stream().map(ReleaseSnapshot::domain).toList(),
         ordered.stream().map(ReleaseSnapshot::ref).toList(),
         List.copyOf(anchors),
-        List.copyOf(withheld),
+        // withheldAnchors：v2.4 取消隐藏档后恒空，字段按契约"只增不删"保留（规范 §14.9）
+        List.of(),
         List.copyOf(gaps),
         personas,
         checks,
@@ -123,14 +117,11 @@ public final class RulebookEvaluator {
       ParameterAsset parameter,
       String releaseTag,
       EvaluationInput input,
-      ArtifactEntitlement entitlement,
       LocalDate evaluatedOn,
       List<ReportAnchor> anchors,
-      List<WithheldAnchor> withheld,
       List<GapRecord> gaps) {
     if (parameter.value() != null && !parameter.value().isEmpty()) {
-      publish(
-          parameter, releaseTag, parameter.value(), entitlement, evaluatedOn, anchors, withheld);
+      anchors.add(anchor(parameter, releaseTag, parameter.value(), evaluatedOn));
       return;
     }
     if (parameter.formula() == null || parameter.formula().isBlank()) {
@@ -171,38 +162,20 @@ public final class RulebookEvaluator {
               parameter.formula()));
       return;
     }
-    publish(parameter, releaseTag, computed, entitlement, evaluatedOn, anchors, withheld);
-  }
-
-  /** 求值成功后的下发决定：过降档纪律，隐藏档只留审计条，其余进落点对象（规则 4.10）。 */
-  private void publish(
-      ParameterAsset parameter,
-      String releaseTag,
-      Map<String, Object> value,
-      ArtifactEntitlement entitlement,
-      LocalDate evaluatedOn,
-      List<ReportAnchor> anchors,
-      List<WithheldAnchor> withheld) {
-    AnchorPresentationPolicy.Verdict verdict =
-        presentationPolicy.decide(
-            parameter.calibration(), parameter.numberClass(), value, entitlement);
-    if (verdict.presentation() == AnchorPresentation.WITHHELD) {
-      withheld.add(new WithheldAnchor(parameter.assetId(), releaseTag, verdict.withholdReason()));
-      return;
-    }
-    anchors.add(anchor(parameter, releaseTag, value, evaluatedOn, verdict.presentation()));
+    anchors.add(anchor(parameter, releaseTag, computed, evaluatedOn));
   }
 
   /**
-   * 落点对象组装。时效两字段（{@code effectiveFrom/To}）**parameters 表没有**——时效资产集中在 attributes（单价库，{@code
+   * 求值成功后的落点对象组装：**求出来的一律下发**（v2.4 起没有隐藏这条去向），两道判定的结果随对象走。
+   *
+   * <p>时效两字段（{@code effectiveFrom/To}）**parameters 表没有**——时效资产集中在 attributes（单价库，{@code
    * effective_*} 是实体列），造价章投影落地时由 attribute 侧填入；此处照实给 {@code null}，不为参数表预造列。
    */
   private ReportAnchor anchor(
       ParameterAsset parameter,
       String releaseTag,
       Map<String, Object> value,
-      LocalDate evaluatedOn,
-      AnchorPresentation presentation) {
+      LocalDate evaluatedOn) {
     return new ReportAnchor(
         parameter.assetId(),
         parameter.name(),
@@ -215,7 +188,7 @@ public final class RulebookEvaluator {
         !"calibrated".equals(parameter.calibration()),
         provenancePolicy.decide(
             parameter.source(), null, null, parameter.calibration(), evaluatedOn),
-        presentation);
+        presentationPolicy.decide(parameter.calibration()));
   }
 
   private static Map<String, Object> range(int min, int max) {

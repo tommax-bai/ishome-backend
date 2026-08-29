@@ -19,7 +19,6 @@ import com.ishome.project.domain.rulebook.ReleaseNotFoundException;
 import com.ishome.project.domain.rulebook.ReleaseRef;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
-import com.ishome.project.domain.rulebook.WithheldAnchor;
 import com.ishome.project.testsupport.PostgresIntegrationTestSupport;
 import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
 import java.time.LocalDate;
@@ -180,31 +179,40 @@ class RulebookEvaluationIntegrationTest {
   }
 
   /**
-   * PAID 门禁真库实跑（规则 4.10）：三章 stage-project 产物全量 PAID（规则 9.1）——未背书的点值/分档值 不下发，只留 withheldAnchors
-   * 审计；未背书的区间降档为参考形态；过可核性门的照常作判断句支点。
+   * PAID 真库实跑（v2.4 裁决 2026-08-29）：三章 stage-project 产物全量 PAID（规则 9.1）——**求出来的一律下发**，
+   * 未过门的语域降为建议口吻并随带标注要求，withheldAnchors 恒空。
+   *
+   * <p>本用例原名 paidGateWithholdsUnbackedAnchorsFromPublishedReleases，断言的是"未背书的点值/分档值不下发"。
+   * 那条纪律整条作废：这次真库实跑里它意味着 budget 的分档值、lighting 的色温点值、ergonomics 的挂杆高度
+   * 三条重新回到产物里——正是隐藏档让造价章长期零金额的那一类条目（规范 §14.9）。
    */
   @Test
-  void paidGateWithholdsUnbackedAnchorsFromPublishedReleases() {
+  void paidDeliversEveryEvaluatedAnchorWithAnnotationDuty() {
     ReportDataPackage pkg =
         reportEvaluationAppService.evaluate(
             List.of("lighting", "ergonomics", "budget"), INPUT, ArtifactEntitlement.PAID);
 
     assertEquals(ArtifactEntitlement.PAID, pkg.entitlement());
     assertEquals(
-        List.of("lkp-counter-height", "lkp-illuminance-living", "lkp-passage-main"),
-        pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
-    assertEquals(
         List.of(
-            new WithheldAnchor("lkp-budget-confidence-width", "budget@v1", "no_range_form"),
-            new WithheldAnchor("lkp-cct-living", "lighting@v1", "no_range_form"),
-            new WithheldAnchor("lkp-wardrobe-rod", "ergonomics@v1", "no_range_form")),
-        pkg.withheldAnchors());
+            "lkp-budget-confidence-width",
+            "lkp-cct-living",
+            "lkp-counter-height",
+            "lkp-illuminance-living",
+            "lkp-passage-main",
+            "lkp-wardrobe-rod"),
+        pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
+    assertEquals(List.of(), pkg.withheldAnchors());
     assertEquals(
         AnchorPresentation.THESIS_SUPPORT, anchor(pkg, "lkp-illuminance-living").presentation());
     assertEquals(
         AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-counter-height").presentation());
-    assertEquals(AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-passage-main").presentation());
-    // 隐藏与求不出是两回事：gap- 仍只有 lkp-tv-distance（规则 4.5 两条回流信号不混）
+    // 三条曾被隐藏的：照常下发，各自带着"这一页得标出来源"的要求
+    for (String lkpId :
+        List.of("lkp-budget-confidence-width", "lkp-cct-living", "lkp-wardrobe-rod")) {
+      assertTrue(anchor(pkg, lkpId).provenance().annotationRequired());
+    }
+    // 求出了但没依据 → provenance；求不出 → gap-。两条回流信号不混（规则 4.5）
     assertEquals(List.of("lkp-tv-distance"), pkg.gaps().stream().map(g -> g.lkpId()).toList());
   }
 
@@ -230,10 +238,8 @@ class RulebookEvaluationIntegrationTest {
     assertEquals("draft", provenance.path("calibration").asText());
     assertEquals("行业通行", provenance.path("source").asText());
     assertTrue(provenance.path("effectiveTo").isNull());
-    JsonNode withheld = json.path("withheldAnchors").path(0);
-    assertEquals("lkp-wardrobe-rod", withheld.path("lkpId").asText());
-    assertEquals("ergonomics@v1", withheld.path("basisTag").asText());
-    assertEquals("no_range_form", withheld.path("reason").asText());
+    // withheldAnchors 恒空（v2.4 取消隐藏档）：字段仍在线上形态里，只是永远没有内容
+    assertTrue(json.path("withheldAnchors").isEmpty());
   }
 
   /** 图 v0.2 §8 首批验证第一件事：同输入重复求值，序列化字节级同输出（规则 8.2 可重放）。 */

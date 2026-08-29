@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ishome.project.domain.rulebook.AnchorPresentation;
-import com.ishome.project.domain.rulebook.AnchorPresentationPolicy;
 import com.ishome.project.domain.rulebook.AnchorProvenance;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
 import com.ishome.project.domain.rulebook.CheckAsset;
@@ -18,7 +17,6 @@ import com.ishome.project.domain.rulebook.ReleaseSnapshot;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
 import com.ishome.project.domain.rulebook.RulebookEvaluator;
-import com.ishome.project.domain.rulebook.WithheldAnchor;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -137,23 +135,27 @@ class RulebookEvaluatorTest {
     assertEquals(AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-wardrobe-rod").presentation());
   }
 
-  /** PAID 门禁（规则 4.10）：未背书的点值根本不下发——只在 withheldAnchors 留审计条，成文线无从引用； 未背书的区间降档为参考形态；过门条目不受影响。 */
+  /**
+   * PAID 侧与 FREE 侧下发同一批落点（v2.4 裁决 2026-08-29 取消隐藏档）：未过门的点值照常下发、 语域降为建议口吻，标注纪律接管风险；withheldAnchors
+   * 恒空。
+   *
+   * <p>本用例原名 paidWithholdsUnbackedPointValuesAndDegradesRanges，断言的是"点值降不成区间故隐藏"——
+   * 那条判据整条作废：藏起来的建议对业主等于没有，对系统等于没有行为信号（规范 §14.9）。
+   */
   @Test
-  void paidWithholdsUnbackedPointValuesAndDegradesRanges() {
+  void paidDeliversUnbackedAnchorsWithReferenceRegister() {
     ReportDataPackage pkg =
         evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
 
     assertEquals(ArtifactEntitlement.PAID, pkg.entitlement());
     assertEquals(
-        List.of("lkp-counter-height", "lkp-passage-main"),
+        List.of("lkp-counter-height", "lkp-passage-main", "lkp-wardrobe-rod"),
         pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
-    assertEquals(
-        List.of(new WithheldAnchor("lkp-wardrobe-rod", "ergonomics@v1", "no_range_form")),
-        pkg.withheldAnchors());
-    assertEquals(
-        AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-counter-height").presentation());
+    assertEquals(List.of(), pkg.withheldAnchors());
+    assertEquals(AnchorPresentation.REFERENCE_ONLY, anchor(pkg, "lkp-wardrobe-rod").presentation());
+    assertTrue(anchor(pkg, "lkp-wardrobe-rod").provenance().annotationRequired());
     assertEquals(AnchorPresentation.THESIS_SUPPORT, anchor(pkg, "lkp-passage-main").presentation());
-    // 隐藏不污染 gap- 回流信号：gap 仍是求不出的那三条（规则 4.5 两类信号各走各的回路）
+    // 求不出仍走 gap-：两类回流信号各走各的回路（规则 4.5），标注承接的是"求出了但没依据"
     assertEquals(3, pkg.gaps().size());
   }
 
@@ -181,21 +183,18 @@ class RulebookEvaluatorTest {
         List.of());
   }
 
-  /** 定位数字未过门即隐藏，与值是不是区间无关（规则 2.2/2.3：参考口吻的定位数字不存在）。 */
+  /** 未过门的定位数字在 PAID 侧照常下发（v2.4：原"参考口吻的定位数字不存在"故必隐藏，整条作废）。 风险改由两件事承接：同页依据标注 + 派生必挂的现场复核话术。 */
   @Test
-  void paidWithholdsUnbackedLocatingNumbers() {
+  void paidDeliversUnbackedLocatingNumbersWithSiteCheck() {
     ReportDataPackage pkg =
         evaluator.evaluate(
             List.of(locatingSnapshot()), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
 
-    assertEquals(List.of(), pkg.anchors());
     assertEquals(
-        List.of(
-            new WithheldAnchor(
-                "lkp-socket-height",
-                "ergonomics@v1",
-                AnchorPresentationPolicy.WITHHOLD_REASON_LOCATING_NUMBER)),
-        pkg.withheldAnchors());
+        List.of("lkp-socket-height"), pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
+    assertEquals(List.of(), pkg.withheldAnchors());
+    assertTrue(anchor(pkg, "lkp-socket-height").provenance().annotationRequired());
+    assertEquals(Map.of("ergonomics", List.of("GUIDE_SITE_CHECK")), pkg.lockedTextsByDomain());
   }
 
   /**
