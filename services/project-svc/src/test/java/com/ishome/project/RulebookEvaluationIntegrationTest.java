@@ -22,6 +22,7 @@ import com.ishome.project.domain.rulebook.ReportDataPackage;
 import com.ishome.project.domain.rulebook.WithheldAnchor;
 import com.ishome.project.testsupport.PostgresIntegrationTestSupport;
 import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,9 @@ class RulebookEvaluationIntegrationTest {
   @Autowired ObjectMapper objectMapper;
 
   /** estate 标注户型夹具（规则 6.3 触发字段）+ 匿名身高族；tvScreenHeightMm 缺失 → gap 不阻塞。 */
+  /** 求值基准日固定：基准日是入参不是时钟，测试里取当天等于让断言随日历漂移（规则 8.2 可重放）。 */
+  private static final LocalDate EVALUATED_ON = LocalDate.of(2026, 8, 29);
+
   private static final EvaluationInput INPUT =
       new EvaluationInput(
           1700,
@@ -134,7 +138,10 @@ class RulebookEvaluationIntegrationTest {
   void evaluatesThreeDomainsAgainstPublishedReleases() {
     ReportDataPackage pkg =
         reportEvaluationAppService.evaluate(
-            List.of("lighting", "ergonomics", "budget"), INPUT, ArtifactEntitlement.FREE);
+            List.of("lighting", "ergonomics", "budget"),
+            INPUT,
+            ArtifactEntitlement.FREE,
+            EVALUATED_ON);
 
     assertEquals(List.of("budget", "ergonomics", "lighting"), pkg.domains());
     assertEquals(
@@ -165,6 +172,11 @@ class RulebookEvaluationIntegrationTest {
     assertEquals(List.of("你和你太太"), judge.examples().stream().map(CheckExample::bad).toList());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
     assertEquals(List.of(), pkg.withheldAnchors());
+    // 标注纪律随真库快照下发（规则 4.10c）：未过门的照标、过门的不要求，判定随包不随时钟
+    assertTrue(anchor(pkg, "lkp-cct-living").provenance().annotationRequired());
+    assertFalse(anchor(pkg, "lkp-illuminance-living").provenance().annotationRequired());
+    assertEquals(
+        "GB 50034-2013 表5.2.1", anchor(pkg, "lkp-illuminance-living").provenance().source());
   }
 
   /**
@@ -203,13 +215,21 @@ class RulebookEvaluationIntegrationTest {
   @Test
   void serializesGateFieldsInContractShape() throws Exception {
     ReportDataPackage pkg =
-        reportEvaluationAppService.evaluate(List.of("ergonomics"), INPUT, ArtifactEntitlement.PAID);
+        reportEvaluationAppService.evaluate(
+            List.of("ergonomics"), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
     JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(pkg));
 
     assertEquals("PAID", json.path("entitlement").asText());
+    assertEquals("2026-08-29", json.path("evaluatedOn").asText());
     JsonNode counter = json.path("anchors").path(0);
     assertEquals("lkp-counter-height", counter.path("lkpId").asText());
     assertEquals("REFERENCE_ONLY", counter.path("presentation").asText());
+    // 标注纪律的线上字面量（规则 4.10c，v2.4）：成文线按同样的字面量解析，改一个字母两侧就对不上
+    JsonNode provenance = counter.path("provenance");
+    assertTrue(provenance.path("annotationRequired").asBoolean());
+    assertEquals("draft", provenance.path("calibration").asText());
+    assertEquals("行业通行", provenance.path("source").asText());
+    assertTrue(provenance.path("effectiveTo").isNull());
     JsonNode withheld = json.path("withheldAnchors").path(0);
     assertEquals("lkp-wardrobe-rod", withheld.path("lkpId").asText());
     assertEquals("ergonomics@v1", withheld.path("basisTag").asText());
@@ -221,9 +241,9 @@ class RulebookEvaluationIntegrationTest {
   void replayProducesByteIdenticalPackage() throws Exception {
     List<String> domains = List.of("lighting", "ergonomics", "budget");
     ReportDataPackage first =
-        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID);
+        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
     ReportDataPackage second =
-        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID);
+        reportEvaluationAppService.evaluate(domains, INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
 
     assertEquals(first, second);
     assertArrayEquals(

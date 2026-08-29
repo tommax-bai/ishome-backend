@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ishome.project.domain.rulebook.AnchorPresentation;
 import com.ishome.project.domain.rulebook.AnchorPresentationPolicy;
+import com.ishome.project.domain.rulebook.AnchorProvenance;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
 import com.ishome.project.domain.rulebook.CheckAsset;
 import com.ishome.project.domain.rulebook.CheckExample;
@@ -18,6 +19,7 @@ import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
 import com.ishome.project.domain.rulebook.RulebookEvaluator;
 import com.ishome.project.domain.rulebook.WithheldAnchor;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,9 @@ import org.junit.jupiter.api.Test;
 class RulebookEvaluatorTest {
 
   private final RulebookEvaluator evaluator = new RulebookEvaluator();
+
+  /** 求值基准日固定：它是入参不是时钟，测试里更不能取当天——取当天等于让断言随日历漂移。 */
+  private static final LocalDate EVALUATED_ON = LocalDate.of(2026, 8, 29);
 
   private static ParameterAsset param(
       String id, String name, Map<String, Object> value, String formula, String calibration) {
@@ -91,7 +96,7 @@ class RulebookEvaluatorTest {
   @Test
   void evaluatesFormulaAndPassThroughAnchors() {
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
 
     ReportAnchor counter = anchor(pkg, "lkp-counter-height");
     assertEquals(Map.of("min", 900, "max", 950), counter.value());
@@ -108,7 +113,7 @@ class RulebookEvaluatorTest {
   @Test
   void recordsGapsInsteadOfBlocking() {
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
 
     assertEquals(
         List.of("lkp-empty", "lkp-mystery", "lkp-tv-distance"),
@@ -122,7 +127,7 @@ class RulebookEvaluatorTest {
   @Test
   void freeDeliversEveryAnchorButOnlyCalibratedSupportsThesis() {
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
 
     assertEquals(ArtifactEntitlement.FREE, pkg.entitlement());
     assertEquals(List.of(), pkg.withheldAnchors());
@@ -136,7 +141,7 @@ class RulebookEvaluatorTest {
   @Test
   void paidWithholdsUnbackedPointValuesAndDegradesRanges() {
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.PAID);
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
 
     assertEquals(ArtifactEntitlement.PAID, pkg.entitlement());
     assertEquals(
@@ -152,29 +157,36 @@ class RulebookEvaluatorTest {
     assertEquals(3, pkg.gaps().size());
   }
 
+  private static ReleaseSnapshot locatingSnapshot() {
+    return locatingSnapshot("draft");
+  }
+
+  private static ReleaseSnapshot locatingSnapshot(String calibration) {
+    return new ReleaseSnapshot(
+        "ergonomics",
+        "ergonomics@v1",
+        List.of(
+            new ParameterAsset(
+                "lkp-socket-height",
+                "常用插座高度",
+                "locating",
+                Map.of("min", 300, "max", 350),
+                null,
+                "mm",
+                calibration,
+                "行业通行",
+                1)),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
   /** 定位数字未过门即隐藏，与值是不是区间无关（规则 2.2/2.3：参考口吻的定位数字不存在）。 */
   @Test
   void paidWithholdsUnbackedLocatingNumbers() {
-    ReleaseSnapshot layout =
-        new ReleaseSnapshot(
-            "ergonomics",
-            "ergonomics@v1",
-            List.of(
-                new ParameterAsset(
-                    "lkp-socket-height",
-                    "常用插座高度",
-                    "locating",
-                    Map.of("min", 300, "max", 350),
-                    null,
-                    "mm",
-                    "draft",
-                    "行业通行",
-                    1)),
-            List.of(),
-            List.of(),
-            List.of());
-
-    ReportDataPackage pkg = evaluator.evaluate(List.of(layout), INPUT, ArtifactEntitlement.PAID);
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(locatingSnapshot()), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
 
     assertEquals(List.of(), pkg.anchors());
     assertEquals(
@@ -184,6 +196,46 @@ class RulebookEvaluatorTest {
                 "ergonomics@v1",
                 AnchorPresentationPolicy.WITHHOLD_REASON_LOCATING_NUMBER)),
         pkg.withheldAnchors());
+  }
+
+  /**
+   * 标注纪律随落点下发（规则 4.10c，v2.4）：未过可核性门 → annotationRequired；过门 → 不要求。 判定在生产侧做完，成文线只执行不重判——与
+   * presentation 同机制。
+   */
+  @Test
+  void carriesProvenanceForUnbackedAnchors() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
+
+    AnchorProvenance draft = anchor(pkg, "lkp-counter-height").provenance();
+    assertTrue(draft.annotationRequired());
+    assertEquals("draft", draft.calibration());
+    assertEquals("测试源", draft.source());
+    assertFalse(anchor(pkg, "lkp-passage-main").provenance().annotationRequired());
+    assertEquals(EVALUATED_ON, pkg.evaluatedOn());
+  }
+
+  /**
+   * 未过门的定位数字随页挂现场复核话术（规则 4.10c 配套，v2.4 新增）：v2.4 之前它一律隐藏，取消隐藏后 风险由"同页标注 +
+   * 现场复核话术"共同承接——只标一句"这条没依据"，等于没告诉业主该怎么办。
+   */
+  @Test
+  void derivesSiteCheckLockedTextForUnbackedLocatingNumber() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(locatingSnapshot()), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
+
+    assertEquals(Map.of("ergonomics", List.of("GUIDE_SITE_CHECK")), pkg.lockedTextsByDomain());
+  }
+
+  /** 过门的定位数字不触发派生必挂：现场复核话术挂的是"没依据"，不是"是定位数字"。 */
+  @Test
+  void skipsSiteCheckLockedTextWhenLocatingNumberIsCalibrated() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(locatingSnapshot("calibrated")), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
+
+    assertEquals(Map.of(), pkg.lockedTextsByDomain());
   }
 
   @Test
@@ -198,9 +250,11 @@ class RulebookEvaluatorTest {
             List.of());
 
     ReportDataPackage a =
-        evaluator.evaluate(List.of(ERGONOMICS, lighting), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(
+            List.of(ERGONOMICS, lighting), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
     ReportDataPackage b =
-        evaluator.evaluate(List.of(lighting, ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(
+            List.of(lighting, ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
 
     assertEquals(a, b);
     assertEquals(List.of("ergonomics", "lighting"), a.domains());
@@ -209,7 +263,7 @@ class RulebookEvaluatorTest {
   @Test
   void carriesSelfContainedCompositionPayload() {
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE);
+        evaluator.evaluate(List.of(ERGONOMICS), INPUT, ArtifactEntitlement.FREE, EVALUATED_ON);
 
     assertEquals(List.of(PERSONA), pkg.personasByDomain().get("ergonomics"));
     // 判官层判据同样随包（自包含）：反例样例与 status 一并下发，成文线才拼得出判官 prompt
