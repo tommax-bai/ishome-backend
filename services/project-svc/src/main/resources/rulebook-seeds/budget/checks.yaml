@@ -10,9 +10,15 @@ items:
   - {id: cr-budget-no-commerce, type: field_deny, scope: [art-budget-chapter],
      require: "本章不得出现任何商品挂载", message: "监督类产物植入商品",
      decided_by: "规范规则 9.2（监督/博弈类产物中立性禁令）"}
-  - {id: cr-budget-stale-price, type: cross_field, scope: [art-budget-chapter],
-     require: "任一消费的 attr-price-* 若 effective_to 越界，则本章降档为仅出结构占比、不出金额", message: "使用过期单价出金额",
-     decided_by: "规范规则 5.15（过期单价比没有单价更危险）"}
+  # v2.4 改口径（裁决 2026-08-29，version 1 → 2）：原 require 写的是"越界即降档为仅出结构占比、
+  # 不出金额"，规则 5.15 已把这条整句作废——过期的行情仍是当时的真实行情，标了取数时间业主自己会
+  # 折算，抹掉金额反而少给他一个判断维度。**违规形态因此反了个向**：从"过期还出金额"变成
+  # "出了金额却没标取数时间与来源"。判据 id 不改：名字说的是"陈旧单价"，纪律仍在管这件事，
+  # 变的是怎么处置（对照"名字说假话就 retire"的 cr-draft-not-in-paid——那条是名字本身作废了）。
+  - {id: cr-budget-stale-price, type: cross_field, scope: [art-budget-chapter], version: 2,
+     require: "任一消费的 attr-price-* 若 effective_to 越界，金额照常出，但该页必须挂它的取数时间与来源标注（provenance.annotationRequired 已在求值线判定，页级标注比对门禁执行）",
+     message: "过期单价出了金额却没标取数时间与来源",
+     decided_by: "规范规则 5.15（v2.4 裁决 2026-08-29：过期照常出金额+标注取数时间，原「仅出结构占比」作废）"}
   - {id: cr-budget-range-width, type: cross_field, scope: [art-budget-chapter],
      require: "区间宽度须与该条 confidence 匹配（lkp-budget-confidence-width）", message: "低置信数据给了窄区间",
      decided_by: "规范规则 5.15（区间宽度随置信调整，用户裁决 2026-08-23）"}

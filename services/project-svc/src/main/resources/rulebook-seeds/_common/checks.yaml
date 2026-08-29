@@ -39,19 +39,31 @@ items:
     message: "prec-schematic 禁定位数字（规则 2.2）"
     decided_by: "规范规则 2.2"
 
+  # version 1 → 2（裁决 2026-08-29）：require 补"且为 calibrated"。这半句原先住在
+  # cr-draft-not-in-paid 里，那条随隐藏档作废后 retire，它**仍然有效的那一半语义**（未过可核性门的
+  # 落点撑不起判断句背书，规则 5.8 未被 v2.4 推翻）由本条承接——纪律不能随着一条判据下线而消失。
+  # 执行器早已是这个口径（reportgen gate 校验 requires 的 lkp- 存在且非降档），本次是数据追上执行。
   - id: cr-assertion-backed
     type: cross_field
     scope: [正文]
-    require: "判断句谓词须在该域 persona.assertion_budget 内，且其 requires 的 lkp-* 已求值"
+    version: 2
+    require: "判断句谓词须在该域 persona.assertion_budget 内，且其 requires 的 lkp-* 已求值、且为 calibrated（过可核性门——未过门的落点照常进正文，但撑不起判断句背书）"
     message: "无计算背书的判断句（规则 5.8）"
-    decided_by: "规范规则 5.8"
+    decided_by: "规范规则 5.8 + 规则 4.10a；v2.4 裁决 2026-08-29（承接 cr-draft-not-in-paid 退役后仍有效的语义）"
 
+  # retired（裁决 2026-08-29，version 1 → 2）：**判据的名字就是被推翻的那条口径**——v2.4 取消了
+  # "draft 禁入 PAID"，未校准资产照常进产物、随标注呈现。处置选 retire 而不是改 message：
+  # 改了 message 名字就在说假话（"not-in-paid"），而判据名与语义必须一致；retire 不删行，
+  # release 可回滚（切回旧 release_tag），审计看得见它曾经存在过。
+  # 剩余有效语义（未过门落点不得作判断句背书）已由 cr-assertion-backed v2 承接，不留空档。
   - id: cr-draft-not-in-paid
     type: cross_field
     scope: [PAID 产物]
+    version: 2
+    status: retired
     require: "calibration=draft 的条目不得作判断句背书，只能降档呈现"
     message: "未校准资产进入 PAID 判断句（规则 4.10/4.10a）"
-    decided_by: "规范规则 4.10/4.10a"
+    decided_by: "规范规则 4.10/4.10a；v2.4 裁决 2026-08-29 整条退役（隐藏档取消，语义由 cr-assertion-backed 承接）"
 
   # ── 判官层判据 ────────────────────────────────────────────────────────────────────────
   #

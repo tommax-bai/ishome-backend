@@ -21,7 +21,7 @@ from ulid import ULID
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEEDS = os.path.join(HERE, "..", "..", "services/project-svc/src/main/resources/rulebook-seeds")
 MIGRATION_GLOB = os.path.join(HERE, "..", "..",
-    "services/project-svc/src/main/resources/db/migration/V*__*rulebook*.sql")
+    "services/project-svc/src/main/resources/db/migration/V*__*.sql")
 SCHEMA = "svc_rulebook"
 VALIDATE_SCHEMA = "svc_rulebook_validate"
 """--validate 走一次性影子 schema：正式 schema 已被 Flyway 建好后（V2 之后的常态），
@@ -30,12 +30,18 @@ VALIDATE_SCHEMA = "svc_rulebook_validate"
 
 
 def migration_sql(schema: str) -> str:
-    """按版本号顺序拼接 rulebook 相关迁移（V2 建表、V3+ 增量），占位符替换为目标 schema。"""
+    """按版本号顺序拼接 rulebook 相关迁移（V2 建表、V3+ 增量），占位符替换为目标 schema。
+
+    "相关"按**内容**判（迁移体内出现 ${rulebook_schema} 占位符），不按文件名判：原先靠文件名带
+    "rulebook" 挑，V4（`V4__add_judge_examples_to_checks.sql`）文件名里没这个词，于是影子 schema
+    少建了 examples/status 两列，--validate 从那时起就跑不通——挑法必须跟着迁移内容走。
+    """
     files = sorted(glob.glob(MIGRATION_GLOB),
                    key=lambda p: int(os.path.basename(p).split("__")[0][1:]))
+    bodies = [open(f, encoding="utf-8").read() for f in files]
     return f"CREATE SCHEMA IF NOT EXISTS {schema};\n" + "\n".join(
-        open(f, encoding="utf-8").read().replace("${rulebook_schema}", schema)
-        for f in files)
+        body.replace("${rulebook_schema}", schema)
+        for body in bodies if "${rulebook_schema}" in body)
 
 def dsn():
     return (f"host={os.environ.get('ISHOME_DB_HOST','localhost')} "
@@ -80,6 +86,10 @@ def rows():
             continue
         for it in d.get("items", []):
             m = {**defaults, **it}; aid = m["id"]; ctx = f"{rel}#{aid}"
+            # version 由种子声明（缺省 1）：唯一键是 (asset_id, version)，故升版本= 新增一行、
+            # 老行留档，发布侧取 DISTINCT ON (asset_id) ORDER BY version DESC 拿最新。改一条判据
+            # 的语义就升 version——就地改 v1 等于把它在历史 release 里的样子也改了（表要照实说）。
+            ver = int(m.get("version", 1))
             if form == "rule":
                 yield ("rules", ctx, aid, dict(
                     asset_id=aid, domain=domain, layer=m["layer"], trigger=J(m["trigger"]),
@@ -87,7 +97,7 @@ def rows():
                     point_spec=J(m["point_spec"]) if m.get("point_spec") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
                     conflict=bool(m.get("conflict", False)),
-                    consumers=J(m.get("consumers", []))))
+                    consumers=J(m.get("consumers", [])), version=ver))
             elif form == "parameter":
                 unit = m.get("unit") or (m.get("value") or {}).get("unit") if isinstance(m.get("value"), dict) else m.get("unit")
                 yield ("parameters", ctx, aid, dict(
@@ -97,7 +107,8 @@ def rows():
                     linked=J(m.get("linked")) if m.get("linked") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
                     conflict=bool(m.get("conflict", False)),
-                    acquired=m.get("acquired"), consumers=J(m.get("consumers", []))))
+                    acquired=m.get("acquired"), consumers=J(m.get("consumers", [])),
+                    version=ver))
             elif form == "attribute":
                 props = m.get("props", {})
                 yield ("attributes", ctx, aid, dict(
@@ -107,7 +118,7 @@ def rows():
                     calibration="draft", source=m.get("source"), source_2=m.get("source_2"),
                     source_pending=m.get("source_pending"), note=m.get("note"),
                     conflict=bool(m.get("conflict", False)),
-                    consumers=J(m.get("consumers", []))))
+                    consumers=J(m.get("consumers", [])), version=ver))
             elif form == "check":
                 refs = [m["max_from"]] if m.get("max_from") else []
                 # status 缺省 active：不写 status 的都是已编译好的规则层确定性机检，此刻就在
@@ -117,7 +128,8 @@ def rows():
                     asset_id=aid, domain=domain, check_type=m["type"], scope=J(m.get("scope", [])),
                     pattern=m.get("pattern"), requirement=m.get("require"), message=m["message"],
                     decided_by=m["decided_by"], threshold_refs=J(refs),
-                    examples=J(m.get("examples", [])), status=m.get("status", "active")))
+                    examples=J(m.get("examples", [])), status=m.get("status", "active"),
+                    version=ver))
 
 def main():
     validate = "--validate" in sys.argv
