@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.ishome.project.domain.rulebook.AnchorPresentation;
 import com.ishome.project.domain.rulebook.AnchorProvenance;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
+import com.ishome.project.domain.rulebook.AttributeAsset;
 import com.ishome.project.domain.rulebook.CheckAsset;
 import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.EvaluationInput;
@@ -84,12 +85,13 @@ class RulebookEvaluatorTest {
               param("lkp-tv-distance", "电视观看距离", null, "屏高 × [3,4]", "draft"),
               param("lkp-mystery", "无可执行形态", null, "神秘公式", "draft"),
               param("lkp-empty", "空定义", null, null, "draft")),
+          List.of(),
           List.of(PERSONA),
           List.of(CHECK, JUDGE_CHECK),
           List.of("依据", "综合考量"));
 
   private static final EvaluationInput INPUT =
-      new EvaluationInput(1700, 1780, null, null, Map.of("kitchen_shape", "U"));
+      new EvaluationInput(1700, 1780, null, null, Map.of("kitchen_shape", "U"), null);
 
   @Test
   void evaluatesFormulaAndPassThroughAnchors() {
@@ -180,6 +182,7 @@ class RulebookEvaluatorTest {
                 1)),
         List.of(),
         List.of(),
+        List.of(),
         List.of());
   }
 
@@ -237,6 +240,182 @@ class RulebookEvaluatorTest {
     assertEquals(Map.of(), pkg.lockedTextsByDomain());
   }
 
+  // ── 造价章：work_item 单价资产 → 落点投影（规则 5.15） ───────────────────────────────
+
+  /** 单价资产夹具：真库形态（区间 + 城市档细分 + 时效两列），只改本用例关心的那一项。 */
+  private static AttributeAsset price(
+      String assetId,
+      Map<String, Object> props,
+      String calibration,
+      LocalDate effectiveFrom,
+      LocalDate effectiveTo) {
+    return new AttributeAsset(
+        assetId,
+        "水电改造人工费",
+        "work_item",
+        props,
+        effectiveFrom,
+        effectiveTo,
+        calibration,
+        "图纸之家 tuzhizhijia.com/fangchan/8468",
+        1);
+  }
+
+  private static final Map<String, Object> HYDRO_PROPS =
+      Map.of(
+          "unit",
+          "㎡",
+          "price_range",
+          List.of(25, 68),
+          "breakdown",
+          Map.of("一线", List.of(60, 68), "三四线", List.of(25, 50)));
+
+  private static ReleaseSnapshot budgetSnapshot(AttributeAsset... attributes) {
+    return new ReleaseSnapshot(
+        "budget", "budget@v7", List.of(), List.of(attributes), List.of(), List.of(), List.of());
+  }
+
+  private static EvaluationInput inputWithCityTier(String cityTier) {
+    return new EvaluationInput(1700, 1780, null, null, Map.of(), cityTier);
+  }
+
+  /**
+   * 造价章的数字来自单价库不是参数表：work_item 资产投影为落点，量纲是**元每计价单位**。
+   *
+   * <p>单位只给"㎡"会被写作器读成面积——落点单位是"量纲入名"（开发规范 §4.1）的数据侧同款。
+   */
+  @Test
+  void projectsWorkItemPriceIntoAnchorWithMoneyUnit() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price(
+                        "attr-price-hydro-labor-sqm",
+                        HYDRO_PROPS,
+                        "calibrated",
+                        LocalDate.of(2026, 8, 28),
+                        LocalDate.of(2026, 11, 28)))),
+            inputWithCityTier(null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor anchor = anchor(pkg, "lkp-price-hydro-labor-sqm");
+    assertEquals("元/㎡", anchor.unit());
+    assertEquals(Map.of("min", 25, "max", 68), anchor.value());
+    assertEquals("analysis", anchor.numberClass());
+    assertEquals("budget@v7", anchor.basisTag());
+    assertEquals(AnchorPresentation.THESIS_SUPPORT, anchor.presentation());
+    assertEquals(LocalDate.of(2026, 8, 28), anchor.provenance().effectiveFrom());
+    assertFalse(anchor.provenance().annotationRequired());
+  }
+
+  /** 城市档逐字命中 breakdown 即取该档——档名是数据自带的词面，不经任何映射表（裁决 2026-08-29）。 */
+  @Test
+  void picksCityTierBandFromBreakdown() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price("attr-price-hydro-labor-sqm", HYDRO_PROPS, "calibrated", null, null))),
+            inputWithCityTier("一线"),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(Map.of("min", 60, "max", 68), anchor(pkg, "lkp-price-hydro-labor-sqm").value());
+  }
+
+  /** 命不中是常态不是异常：细分按墙体类型/档位时，全国粗档区间就是这条单价的正确答案。 */
+  @Test
+  void fallsBackToNationwideRangeWhenCityTierMisses() {
+    Map<String, Object> byWallType =
+        Map.of(
+            "unit", "㎡",
+            "price_range", List.of(20, 60),
+            "breakdown", Map.of("普通墙", List.of(20, 30), "混凝土墙", List.of(40, 60)));
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price("attr-price-demolition", byWallType, "calibrated", null, null))),
+            inputWithCityTier("一线"),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(Map.of("min", 20, "max", 60), anchor(pkg, "lkp-price-demolition").value());
+  }
+
+  /**
+   * 过期单价**照常出金额**，随标注取数时间与来源（规则 5.15，v2.4 裁决 2026-08-29）。
+   *
+   * <p>原口径"越界即降档为仅出结构占比、不出金额"已作废：过期的行情仍是当时的真实行情，标了时间业主
+   * 自己会折算，抹掉金额反而少给他一个判断维度。这条用例是那次推翻的回归锚——真库当前无过期单价， 只有它守着这条纪律。
+   */
+  @Test
+  void staleUnitPriceStillDeliversMoneyWithAcquisitionDate() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price(
+                        "attr-price-wall-paint",
+                        Map.of("unit", "㎡", "price_range", List.of(10, 20)),
+                        "calibrated",
+                        LocalDate.of(2025, 8, 1),
+                        LocalDate.of(2026, 8, 1)))),
+            inputWithCityTier("一线"),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor anchor = anchor(pkg, "lkp-price-wall-paint");
+    assertEquals(Map.of("min", 10, "max", 20), anchor.value());
+    assertTrue(anchor.provenance().annotationRequired());
+    assertEquals(LocalDate.of(2025, 8, 1), anchor.provenance().effectiveFrom());
+    assertEquals(LocalDate.of(2026, 8, 1), anchor.provenance().effectiveTo());
+    // 过期不降语域：可核性门与时效是两件事（前者管能不能作支点，后者管标不标取数时间）
+    assertEquals(AnchorPresentation.THESIS_SUPPORT, anchor.presentation());
+    assertFalse(anchor.degraded());
+  }
+
+  /** 只投影 work_item：描述性属性（材质卡/色板/收纳物品）没有值形态，投影它们只会造出一批空落点。 */
+  @Test
+  void skipsAttributesOtherThanWorkItem() {
+    AttributeAsset material =
+        new AttributeAsset(
+            "attr-material-sintered-stone",
+            "哑光岩板",
+            "material",
+            Map.of("wear", "high"),
+            null,
+            null,
+            "draft",
+            "厂商公开参数",
+            1);
+    AttributeAsset priceless =
+        new AttributeAsset(
+            "attr-price-broken",
+            "无区间单价",
+            "work_item",
+            Map.of("unit", "㎡"),
+            null,
+            null,
+            "draft",
+            null,
+            1);
+
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(budgetSnapshot(material, priceless)),
+            inputWithCityTier("一线"),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(List.of(), pkg.anchors());
+    // 求不出的单价走 gap-（回流不阻塞），不是静默消失
+    assertEquals(List.of("lkp-price-broken"), pkg.gaps().stream().map(GapRecord::lkpId).toList());
+    assertEquals("empty_definition", gap(pkg, "lkp-price-broken").reason());
+  }
+
   @Test
   void isReplayableAndOrderIndependent() {
     ReleaseSnapshot lighting =
@@ -244,6 +423,7 @@ class RulebookEvaluatorTest {
             "lighting",
             "lighting@v1",
             List.of(param("lkp-cct-living", "起居色温", Map.of("v", 3000), null, "draft")),
+            List.of(),
             List.of(),
             List.of(),
             List.of());

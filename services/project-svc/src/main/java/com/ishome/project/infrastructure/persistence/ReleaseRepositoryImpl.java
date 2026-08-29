@@ -4,11 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ishome.project.domain.port.ReleaseRepository;
+import com.ishome.project.domain.rulebook.AttributeAsset;
 import com.ishome.project.domain.rulebook.CheckAsset;
 import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.ParameterAsset;
 import com.ishome.project.domain.rulebook.PersonaAsset;
 import com.ishome.project.domain.rulebook.ReleaseSnapshot;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +19,8 @@ import java.util.TreeSet;
 import org.springframework.stereotype.Repository;
 
 /**
- * svc_rulebook.releases PG 实现：快照 jsonb → 求值线投影（parameters/personas/checks/禁词，其余形态随后续扩展）。
- * 解码失败视为发布物损坏直接抛出——release 是不可变契约数据，静默跳条目即静默假成功。
+ * svc_rulebook.releases PG 实现：快照 jsonb → 求值线投影（parameters/attributes/personas/checks/禁词，
+ * 其余形态随后续扩展）。 解码失败视为发布物损坏直接抛出——release 是不可变契约数据，静默跳条目即静默假成功。
  */
 @Repository
 public class ReleaseRepositoryImpl implements ReleaseRepository {
@@ -44,6 +46,7 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
           po.getDomain(),
           po.getReleaseTag(),
           parameters(assets),
+          attributes(assets),
           personas(assets),
           checks(assets),
           bannedTerms(assets));
@@ -68,6 +71,36 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("version").asInt(1)));
     }
     return parameters;
+  }
+
+  /**
+   * attribute 形态投影：治理头（calibration/source/effective_*）取**表列**，props 原样带走。
+   *
+   * <p>props 内的 {@code effective_from/to} 是导入镜像（contracts work_item schema 明写"以表列为准"），
+   * 此处不读——两处不一致时读镜像等于让快照自己说了不算。缺列即 {@code null}：无时效的属性（材质卡、 色板卡）本就没有取数时间，编一个反而给标注层造出假的"有效期"。
+   */
+  private List<AttributeAsset> attributes(JsonNode assets) {
+    List<AttributeAsset> attributes = new ArrayList<>();
+    for (JsonNode node : assets.path("attributes")) {
+      attributes.add(
+          new AttributeAsset(
+              node.path("asset_id").asText(),
+              node.path("name").asText(),
+              node.path("entity_type").asText(null),
+              node.path("props").isObject() ? toMap(node.path("props")) : Map.of(),
+              date(node.path("effective_from")),
+              date(node.path("effective_to")),
+              node.path("calibration").asText("draft"),
+              node.path("source").asText(null),
+              node.path("version").asInt(1)));
+    }
+    return attributes;
+  }
+
+  /** 快照内日期为 ISO 文本（to_jsonb 的 date 形态）；缺失/空串 → null，不猜。 */
+  private static LocalDate date(JsonNode node) {
+    String text = node.asText(null);
+    return text == null || text.isBlank() ? null : LocalDate.parse(text);
   }
 
   private List<PersonaAsset> personas(JsonNode assets) {

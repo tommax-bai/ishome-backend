@@ -62,7 +62,8 @@ class RulebookEvaluationIntegrationTest {
           1780,
           1600,
           null,
-          Map.of("kitchen_shape", "U", "entrance_shape", "side", "sunken_bathroom", "true"));
+          Map.of("kitchen_shape", "U", "entrance_shape", "side", "sunken_bathroom", "true"),
+          "一线");
 
   @BeforeEach
   void seedReleases() {
@@ -117,6 +118,17 @@ class RulebookEvaluationIntegrationTest {
           {"asset_id":"lkp-budget-confidence-width","name":"置信到区间宽度的映射","number_class":"analysis",
            "value":{"high":"±10%","medium":"±20%","low":"±35%"},"formula":null,"unit":null,
            "calibration":"draft","source":"内部规范 §5.9","version":1}],
+          "attributes":[
+          {"asset_id":"attr-price-hydro-labor-sqm","name":"水电改造人工费","entity_type":"work_item",
+           "props":{"unit":"㎡","price_range":[25,68],"breakdown":{"一线":[60,68],"三四线":[25,50]}},
+           "effective_from":"2026-08-28","effective_to":"2026-11-28",
+           "calibration":"calibrated","source":"图纸之家 tuzhizhijia.com/fangchan/8468","version":1},
+          {"asset_id":"attr-price-wall-paint","name":"墙面乳胶漆涂刷","entity_type":"work_item",
+           "props":{"unit":"㎡","price_range":[10,20]},
+           "effective_from":"2025-08-01","effective_to":"2026-08-01",
+           "calibration":"calibrated","source":"尚美饰家 m.smsj.com/strategy/70811","version":1},
+          {"asset_id":"attr-material-sintered-stone","name":"哑光岩板","entity_type":"material",
+           "props":{"wear":"high"},"calibration":"draft","source":"厂商公开参数","version":1}],
           "personas":[{"asset_id":"persona-budget","version":1}]}}
         """);
   }
@@ -154,6 +166,9 @@ class RulebookEvaluationIntegrationTest {
     assertEquals(Map.of("v", 2136L), anchor(pkg, "lkp-wardrobe-rod").value());
     assertFalse(anchor(pkg, "lkp-illuminance-living").degraded());
     assertTrue(anchor(pkg, "lkp-cct-living").degraded());
+    // 造价章的金额来自单价库投影（规则 5.15）：城市档命中 breakdown 即取该档，量纲是元每计价单位
+    assertEquals(Map.of("min", 60, "max", 68), anchor(pkg, "lkp-price-hydro-labor-sqm").value());
+    assertEquals("元/㎡", anchor(pkg, "lkp-price-hydro-labor-sqm").unit());
     assertEquals(1, pkg.gaps().size());
     assertEquals("lkp-tv-distance", pkg.gaps().get(0).lkpId());
     assertEquals("missing_input", pkg.gaps().get(0).reason());
@@ -200,6 +215,8 @@ class RulebookEvaluationIntegrationTest {
             "lkp-counter-height",
             "lkp-illuminance-living",
             "lkp-passage-main",
+            "lkp-price-hydro-labor-sqm",
+            "lkp-price-wall-paint",
             "lkp-wardrobe-rod"),
         pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
     assertEquals(List.of(), pkg.withheldAnchors());
@@ -214,6 +231,37 @@ class RulebookEvaluationIntegrationTest {
     }
     // 求出了但没依据 → provenance；求不出 → gap-。两条回流信号不混（规则 4.5）
     assertEquals(List.of("lkp-tv-distance"), pkg.gaps().stream().map(g -> g.lkpId()).toList());
+  }
+
+  /**
+   * 造价章第一次有金额（规则 5.15）：单价库 → 落点投影在真库快照形态上跑通。
+   *
+   * <p>三件事一起验：①金额进产物（此前造价域只有占比/倍率这类分析值，一个钱数都没有）；②城市档按 匿名画像选档（裁决
+   * 2026-08-29：城市档是市场参数不是身份）；③**过期单价照常出金额**，随标注取数 时间与来源（v2.4 推翻原"越界即不出金额"）。描述性属性不投影——material
+   * 卡不是数字落点。
+   */
+  @Test
+  void budgetChapterCarriesMoneyFromUnitPriceLibrary() {
+    ReportDataPackage pkg =
+        reportEvaluationAppService.evaluate(
+            List.of("budget"), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
+
+    assertEquals(
+        List.of("lkp-budget-confidence-width", "lkp-price-hydro-labor-sqm", "lkp-price-wall-paint"),
+        pkg.anchors().stream().map(ReportAnchor::lkpId).toList());
+
+    ReportAnchor hydro = anchor(pkg, "lkp-price-hydro-labor-sqm");
+    assertEquals(Map.of("min", 60, "max", 68), hydro.value());
+    assertEquals("元/㎡", hydro.unit());
+    assertEquals("analysis", hydro.numberClass());
+    assertEquals(AnchorPresentation.THESIS_SUPPORT, hydro.presentation());
+    assertFalse(hydro.provenance().annotationRequired());
+    assertEquals(LocalDate.of(2026, 8, 28), hydro.provenance().effectiveFrom());
+
+    ReportAnchor paint = anchor(pkg, "lkp-price-wall-paint");
+    assertEquals(Map.of("min", 10, "max", 20), paint.value());
+    assertTrue(paint.provenance().annotationRequired());
+    assertEquals(LocalDate.of(2026, 8, 1), paint.provenance().effectiveTo());
   }
 
   /**

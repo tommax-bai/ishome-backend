@@ -14,6 +14,9 @@ import java.util.TreeMap;
  * <p>三条求值路径：①参数带 value → 直取（formula 仅为推导说明）；②仅带 formula → 按 assetId 显式实现
  * 代入匿名输入——公式的可执行形态在此登记，未登记/输入缺失 → gap-；③无值无公式 → gap-。 结果按 lkpId 排序，数值全为整数毫米/原样单位——不引入浮点位数漂移。
  *
+ * <p>落点有**两个来源**：parameters（上述三条路径）与 attributes 里 {@code entity_type=work_item} 的 单价资产（{@link
+ * #projectWorkItemPrice}，规则 5.15 造价章——造价章的数字全在单价库，不在参数表）。 两者产出的落点对象形态完全一致，成文线不区分来源。
+ *
  * <p>求出值之后过两道判定，都在生产侧做完、结果随包下发（成文线只执行不重判）：①**语域**（{@link AnchorPresentationPolicy}，规则
  * 4.10a/5.8）——过没过可核性门决定能不能作判断句支点；②**标注**（{@link AnchorProvenancePolicy}，规则 4.10c，v2.4
  * 新增）——未过门或已过期的落点随带 {@link AnchorProvenance}， 成文线据此在同页挂依据标注，不标即违规。
@@ -30,6 +33,29 @@ public final class RulebookEvaluator {
 
   /** 定位数字（规则 2.3 数字三分法）：未过门时进正文要随页挂现场复核话术，见 {@link #derivedLockedTexts}。 */
   private static final String NUMBER_CLASS_LOCATING = "locating";
+
+  /**
+   * 单价落点的数字类别（规则 2.3 三分法）：**分析数字**——它出现在分析与正文，是造价推算的输入与结论。
+   *
+   * <p>不是定位数字（没人拿单价去现场画线定位，裁决 2026-08-29 的重标判据），也不是选型数字（选型数字
+   * 是"驱动购买决策的**商品参数**"如色温、光束角，单价是工项行情不是商品参数）。分类挂在 entity_type 上、不逐条配：attributes 表没有 number_class
+   * 列，而同一个 entity_type 的数字类别本就是同一个。
+   */
+  private static final String NUMBER_CLASS_ANALYSIS = "analysis";
+
+  /** 单价资产的 entity_type（contracts {@code rulebook/attributes/work_item.schema.json}）。 */
+  private static final String ENTITY_TYPE_WORK_ITEM = "work_item";
+
+  /**
+   * 单价落点的量纲前缀：单价的量纲是"**元每计价单位**"。
+   *
+   * <p>直接把资产的计价单位（㎡/点位/投影㎡）当落点单位下发，写作器读到的是"墙体拆除，㎡ = 20-60"—— 会被写成面积。量纲入名是本项目最重要的一条变量规则（开发规范
+   * §4.1），落点单位是它的数据侧同款。
+   */
+  private static final String PRICE_UNIT_PREFIX = "元/";
+
+  /** 可核性门（规则 4.10a）：过门与否同时决定降档标记与语域档位，两处判据必须同一口径。 */
+  private static final String CALIBRATION_CALIBRATED = "calibrated";
 
   /**
    * 现场复核话术的锁定文案 ID（contracts {@code registries/locked_texts.md}，正文在渲染层按 ID 取）。
@@ -68,6 +94,9 @@ public final class RulebookEvaluator {
       bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
       for (ParameterAsset parameter : snapshot.parameters()) {
         resolve(parameter, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
+      }
+      for (AttributeAsset attribute : snapshot.attributes()) {
+        projectWorkItemPrice(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
       }
     }
     anchors.sort(Comparator.comparing(ReportAnchor::lkpId));
@@ -111,6 +140,92 @@ public final class RulebookEvaluator {
   private static String domainOf(String releaseTag) {
     int at = releaseTag.indexOf('@');
     return at < 0 ? releaseTag : releaseTag.substring(0, at);
+  }
+
+  /**
+   * work_item 单价资产 → 落点投影（规则 5.15 造价章"分项造价区间 = 量 × 单价区间"的单价那一半）。
+   *
+   * <p>为什么要投影而不是在 parameters 里手写一份镜像：单价是**时效资产**，治理头（两源交叉验证、 effective 时效、置信定区间宽度）全在 attributes
+   * 表；写一份 lkp- 镜像等于把同一个数放两处， 新增一条单价时镜像忘了加就是造价章静默少一项。投影是全域一致的结构规则，加一条单价 = 加一行数据。
+   *
+   * <p>id 换前缀而非另起名：{@code attr-} 是单价库资产（全国/分档、带两源与时效），{@code lkp-} 是本户 按城市档选出的那个区间——关系同 parameters
+   * 的"公式资产 → 代入匿名输入后的落点"，不是同概念两套名 （规则 1.8 第四条）。只投影 {@code work_item}：material/color/storage_item
+   * 是描述性属性，投影它们 只会造出一批没有值形态的落点。
+   */
+  private void projectWorkItemPrice(
+      AttributeAsset attribute,
+      String releaseTag,
+      EvaluationInput input,
+      LocalDate evaluatedOn,
+      List<ReportAnchor> anchors,
+      List<GapRecord> gaps) {
+    if (!ENTITY_TYPE_WORK_ITEM.equals(attribute.entityType())) {
+      return;
+    }
+    String lkpId = anchorIdOf(attribute.assetId());
+    Map<String, Object> value = priceRange(attribute.props(), input.cityTier());
+    if (value == null) {
+      gaps.add(new GapRecord(lkpId, "empty_definition", "单价资产无 price_range 区间"));
+      return;
+    }
+    Object unit = attribute.props().get("unit");
+    anchors.add(
+        new ReportAnchor(
+            lkpId,
+            attribute.name(),
+            NUMBER_CLASS_ANALYSIS,
+            unit == null ? null : PRICE_UNIT_PREFIX + unit,
+            value,
+            releaseTag,
+            attribute.source(),
+            attribute.calibration(),
+            isDegraded(attribute.calibration()),
+            provenancePolicy.decide(
+                attribute.source(),
+                attribute.effectiveFrom(),
+                attribute.effectiveTo(),
+                attribute.calibration(),
+                evaluatedOn),
+            presentationPolicy.decide(attribute.calibration())));
+  }
+
+  /** {@code attr-price-demolition} → {@code lkp-price-demolition}（契约 anchors[].lkpId 恒 lkp- 前缀）。 */
+  private static String anchorIdOf(String assetId) {
+    return assetId.startsWith("attr-") ? "lkp-" + assetId.substring("attr-".length()) : assetId;
+  }
+
+  /**
+   * 单价选档：城市档**逐字命中** {@code breakdown} 的键且该档是二元数值区间 → 取该档；否则取 {@code price_range}（全国粗档）。
+   *
+   * <p>逐字命中不做任何归一/映射：档名是数据自带的词面（"一线"/"二线"/"三四线"），映射表一旦存在就会 与数据漂移。命不中是常态而非异常——{@code breakdown}
+   * 也可能按墙体类型或档位细分（"普通墙"、"经济"）， 那时全国粗档区间就是这条单价的正确答案，不是降级。
+   */
+  private static Map<String, Object> priceRange(Map<String, Object> props, String cityTier) {
+    Object band = null;
+    if (cityTier != null && props.get("breakdown") instanceof Map<?, ?> breakdown) {
+      band = breakdown.get(cityTier);
+    }
+    Map<String, Object> tiered = rangeOf(band);
+    return tiered != null ? tiered : rangeOf(props.get("price_range"));
+  }
+
+  /** {@code [low, high]} 二元数值数组 → {@code {min,max}}；单值档位边界（如"高定下限"）等其余形态 → null。 */
+  private static Map<String, Object> rangeOf(Object band) {
+    if (!(band instanceof List<?> pair)
+        || pair.size() != 2
+        || !(pair.get(0) instanceof Number)
+        || !(pair.get(1) instanceof Number)) {
+      return null;
+    }
+    Map<String, Object> value = new LinkedHashMap<>();
+    value.put("min", pair.get(0));
+    value.put("max", pair.get(1));
+    return value;
+  }
+
+  /** 未过可核性门（规则 4.10a）：降档标记与语域档位的同一口径。 */
+  private static boolean isDegraded(String calibration) {
+    return !CALIBRATION_CALIBRATED.equals(calibration);
   }
 
   private void resolve(
@@ -185,7 +300,7 @@ public final class RulebookEvaluator {
         releaseTag,
         parameter.source(),
         parameter.calibration(),
-        !"calibrated".equals(parameter.calibration()),
+        isDegraded(parameter.calibration()),
         provenancePolicy.decide(
             parameter.source(), null, null, parameter.calibration(), evaluatedOn),
         presentationPolicy.decide(parameter.calibration()));
