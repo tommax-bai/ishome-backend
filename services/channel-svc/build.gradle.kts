@@ -10,4 +10,6 @@ dependencies {
     implementation(libs.grpc.netty.shaded)
     // 飞书开放平台 SDK——仅 infrastructure.adapter.feishu 包内使用（渠道方言隔离，规范 §6.2）
     implementation(libs.oapi.sdk)
+    // 阿里云 OSS：用户发来的图落私有桶（私有产物一律进私有桶，获客线红线一）
+    implementation(libs.aliyun.oss)
 }

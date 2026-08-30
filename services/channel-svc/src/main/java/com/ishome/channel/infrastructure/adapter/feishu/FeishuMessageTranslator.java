@@ -8,6 +8,7 @@ import com.github.f4b6a3.ulid.UlidCreator;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.Value;
+import com.ishome.channel.domain.UploadedImage;
 import com.ishome.channel.v1.ImageContent;
 import com.ishome.channel.v1.MessageDirection;
 import com.ishome.channel.v1.QuickReplyContent;
@@ -26,7 +27,13 @@ final class FeishuMessageTranslator {
 
   static final String FEISHU_CHANNEL_INSTANCE = "feishu:ishome-prod";
 
-  /** image_url 承载飞书 image_key 的暂定 scheme；媒体与 OSS 双向中转 TODO(media)。 */
+  /**
+   * image_url 承载飞书 image_key 的 scheme，**现只用于出站**（把一张已在飞书那边的图发回给用户）。
+   *
+   * <p>入站不再走它：用户发来的图由渠道侧取下来落私有桶，统一消息里带的是**桶里的对象键** （{@link
+   * com.ishome.channel.domain.UploadedImageKey}）——下游拿着 image_key 什么也做不了， 而凭证只有渠道侧有。出站从我们自己的桶发图属
+   * TODO(media) 的另一半，触发条件写死＝ 生成的图要送回会话时。
+   */
   static final String FEISHU_IMAGE_SCHEME = "feishu-image://";
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -38,9 +45,19 @@ final class FeishuMessageTranslator {
    *
    * <p>message_id 直接采用飞书原生消息 id：事件重推（处理超时未及时 ack 时飞书会重投同一事件） 在 design-svc 幂等去重处必须命中同一
    * id，否则同一条用户消息会被回复多遍（2026-08-23 真机事故）。
+   *
+   * <p>本方法是纯函数、不做 IO：图**必须由调用方先取下来落桶**，把结果作为 {@code uploadedImage} 传进来 （{@link #inboundImageKey}
+   * 给出要取的那把 key）。msg_type=image 而不带它即抛—— 静默丢图是这条线上代价最大的一种失败，不给它留口子。
+   *
+   * @param uploadedImage 图片消息填已落桶的那张图；其余类型传 {@link Optional#empty()}
    */
   static Optional<UnifiedMessage> toInboundMessage(
-      String openId, String feishuMessageId, String msgType, String contentJson, long createdAtMs) {
+      String openId,
+      String feishuMessageId,
+      String msgType,
+      String contentJson,
+      long createdAtMs,
+      Optional<UploadedImage> uploadedImage) {
     UnifiedMessage.Builder builder =
         inboundBuilder(feishuMessageId, openId, createdAtMs)
             .setRawPayload(
@@ -62,11 +79,35 @@ final class FeishuMessageTranslator {
               builder
                   .setImage(
                       ImageContent.newBuilder()
-                          .setImageUrl(FEISHU_IMAGE_SCHEME + content.path("image_key").asText())
+                          .setObjectKey(
+                              uploadedImage
+                                  .orElseThrow(
+                                      () ->
+                                          new IllegalArgumentException(
+                                              "图片消息必须先落桶再翻译：没有对象键就往下走等于把图丢了"))
+                                  .objectKey())
+                          .setMimeType(uploadedImage.get().mimeType())
                           .build())
                   .build());
       default -> Optional.empty();
     };
+  }
+
+  /**
+   * 入站图片消息里的飞书 image_key；非图片消息返回 empty。
+   *
+   * <p>方言解析只在本类：调用方拿着这把 key 去取图（凭证也只在渠道侧），取回来落桶后再回头调 {@link #toInboundMessage}。拆成两步是因为取图是 IO——本类不做
+   * IO，而 IO 又必须在事件 ack 之后。
+   */
+  static Optional<String> inboundImageKey(String msgType, String contentJson) {
+    if (!"image".equals(msgType)) {
+      return Optional.empty();
+    }
+    String imageKey = readJson(contentJson).path("image_key").asText();
+    if (imageKey.isBlank()) {
+      throw new IllegalArgumentException("飞书图片消息没有 image_key，取不到图：" + contentJson);
+    }
+    return Optional.of(imageKey);
   }
 
   /**
@@ -78,6 +119,22 @@ final class FeishuMessageTranslator {
       String eventId, String openId, String optionId, long createdAtMs) {
     return inboundBuilder(eventId, openId, createdAtMs)
         .setQuickReply(QuickReplyContent.newBuilder().setSelectedOptionId(optionId).build())
+        .build();
+  }
+
+  /**
+   * 出站：渠道侧自己要对用户说的一句话（如"这张图没取下来"）→ 统一模型。
+   *
+   * <p>message_id 由入站那条消息的 id 加后缀推得，**同一次失败推得同一个 id**：飞书事件重推时 出站幂等键命中既有记录，用户不会被同一句话说两遍。
+   */
+  static UnifiedMessage toOutboundText(String messageId, String openId, String text) {
+    return UnifiedMessage.newBuilder()
+        .setMessageId(messageId)
+        .setChannelType(ChannelType.CHANNEL_TYPE_FEISHU)
+        .setChannelInstance(FEISHU_CHANNEL_INSTANCE)
+        .setDirection(MessageDirection.MESSAGE_DIRECTION_OUTBOUND)
+        .setExternalUserId(openId)
+        .setText(TextContent.newBuilder().setText(text).build())
         .build();
   }
 

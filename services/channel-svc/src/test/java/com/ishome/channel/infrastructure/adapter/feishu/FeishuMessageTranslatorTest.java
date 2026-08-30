@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ishome.channel.domain.UploadedImage;
 import com.ishome.channel.v1.AudioContent;
 import com.ishome.channel.v1.CardContent;
 import com.ishome.channel.v1.MessageDirection;
@@ -22,11 +23,18 @@ class FeishuMessageTranslatorTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static final String IMAGE_CONTENT_JSON = "{\"image_key\":\"img_v2_abc\"}";
+
   @Test
   void translatesInboundTextMessage() {
     Optional<UnifiedMessage> message =
         FeishuMessageTranslator.toInboundMessage(
-            "ou_123", "om_456", "text", "{\"text\":\"你好，设计我的家\"}", 1_724_400_000_123L);
+            "ou_123",
+            "om_456",
+            "text",
+            "{\"text\":\"你好，设计我的家\"}",
+            1_724_400_000_123L,
+            Optional.empty());
 
     assertTrue(message.isPresent());
     assertEquals("你好，设计我的家", message.get().getText().getText());
@@ -42,21 +50,74 @@ class FeishuMessageTranslatorTest {
   }
 
   @Test
-  void translatesInboundImageToSchemedUrl() {
+  void translatesInboundImageToObjectKey() {
     Optional<UnifiedMessage> message =
         FeishuMessageTranslator.toInboundMessage(
-            "ou_123", "om_789", "image", "{\"image_key\":\"img_v2_abc\"}", 0L);
+            "ou_123",
+            "om_789",
+            "image",
+            IMAGE_CONTENT_JSON,
+            0L,
+            Optional.of(new UploadedImage("uploads/abc123/original.png", "image/png")));
 
     assertTrue(message.isPresent());
+    // 统一消息里带的是桶里的对象键，不是飞书的 image_key——下游拿着 image_key 什么也做不了
+    assertEquals("uploads/abc123/original.png", message.get().getImage().getObjectKey());
+    assertEquals("image/png", message.get().getImage().getMimeType());
+    assertEquals("", message.get().getImage().getImageUrl());
+    // 方言仍只在 raw_payload 存档里
+    assertTrue(
+        message
+            .get()
+            .getRawPayload()
+            .getFieldsOrThrow("content")
+            .getStringValue()
+            .contains("img_v2_abc"));
+  }
+
+  @Test
+  void rejectsInboundImageWithoutStoredObject() {
+    // 静默丢图是这条线上代价最大的一种失败：没落桶就翻译，当场抛
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            FeishuMessageTranslator.toInboundMessage(
+                "ou_123", "om_789", "image", IMAGE_CONTENT_JSON, 0L, Optional.empty()));
+  }
+
+  @Test
+  void readsImageKeyOnlyFromImageMessages() {
     assertEquals(
-        FeishuMessageTranslator.FEISHU_IMAGE_SCHEME + "img_v2_abc",
-        message.get().getImage().getImageUrl());
+        Optional.of("img_v2_abc"),
+        FeishuMessageTranslator.inboundImageKey("image", IMAGE_CONTENT_JSON));
+    assertTrue(FeishuMessageTranslator.inboundImageKey("text", "{\"text\":\"你好\"}").isEmpty());
+  }
+
+  @Test
+  void rejectsImageMessageWithoutImageKey() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> FeishuMessageTranslator.inboundImageKey("image", "{}"));
+  }
+
+  @Test
+  void translatesOutboundTextNotice() {
+    UnifiedMessage notice =
+        FeishuMessageTranslator.toOutboundText("om_789:image-not-received", "ou_123", "这张图我没取下来");
+
+    assertEquals(MessageDirection.MESSAGE_DIRECTION_OUTBOUND, notice.getDirection());
+    assertEquals("ou_123", notice.getExternalUserId());
+    assertEquals("这张图我没取下来", notice.getText().getText());
+    // id 由入站 id 推得：重推同一事件时出站幂等键命中，用户不会被同一句话说两遍
+    assertEquals("om_789:image-not-received", notice.getMessageId());
   }
 
   @Test
   void skipsUnsupportedInboundType() {
     assertTrue(
-        FeishuMessageTranslator.toInboundMessage("ou_123", "om_1", "sticker", "{}", 0L).isEmpty());
+        FeishuMessageTranslator.toInboundMessage(
+                "ou_123", "om_1", "sticker", "{}", 0L, Optional.empty())
+            .isEmpty());
   }
 
   @Test
