@@ -71,6 +71,26 @@ release 重发六域：`budget@v11 / ergonomics@v10 / lighting@v11 / material@v9
 - 丙 · 重开 2026-08-29 晚被否的甲案（渲裸值 + 机检句子须带边界词）——**动裁决**，当时否它的
   理由是"句子漏词时裸数被误读成点值"，而现在有了确定性判据，那条理由是否还成立要重判。
 
+## 四点五、顺带产出：收敛专项的第一批台账（十二跑，按命中跑数）
+
+同一份输入、同一份 release、十二跑，**1/12 出册**（前次"8 跑 1 过"的同量级）。规则层违规按
+**命中跑数**（不按条数——同一条判据一跑中两次仍是一跑，触发率要按份读）：
+
+| 判据 | 命中跑数 |
+|---|---|
+| `gate-bound-word-before-ref` | 9/12 |
+| `gate-chinese-numeral` | 6/12 |
+| `gate-banned-term` | 5/12 |
+| `gate-assertion-not-budgeted` | 4/12 |
+| `gate-assertion-unbacked` | 3/12 |
+| `gate-number-ref-unused` | 3/12 |
+| `cr-methodology-language` | 2/12 |
+| `gate-sample-verbatim-copy` | 1/12 |
+| `cr-weak-word` | 1/12 |
+
+**收敛专项不必等判官台账**：判官层仍未跑到过，但**规则层这份按跑数读就够开工**——它已经指出
+这一章过不了检的头一件事是边界词（§四），第二件是没有落点背书的中文数字。
+
 ## 五、同批做掉的一条（它挡着验证）
 
 `gate-chinese-numeral` / `gate-digit-outside-ref` 的打回话补**第二条出路**（坑单第 19 条立案样本）：
