@@ -7,10 +7,17 @@ form: parameter
 release: null
 default_calibration: draft
 items:
-  - {id: lkp-storage-density-baseline, name: 收纳延米密度基准, number_class: analysis, value_kind: range, value: {min: 0.25, max: 0.35}, unit: "延米/㎡",
+  # 单位「延米」→「米」，题名同改（用户裁决 2026-08-30 晚，选乙案）。**数一个字没变**：
+  # 一延米就是沿墙一米，换的是对业主的说法不是量。为什么非换不可：单位自本轮起由写手写进正文
+  # （我们预制、它照抄），而「延米」正是本域禁词——同一个词既是计量单位又禁止对业主说，
+  # 机器会一边要求它写、一边因为它写了而打回，这一章永远过不了检（gate-unit-collides-banned-term
+  # 会在第一次跑时整包拦下）。禁词表不动：「延米」对业主仍然不说。
+  # **后续路径写死**：清单页族落地时，采购/报价对照页按行业口径仍用「延米」——那两页是给工人
+  # 与报价看的，与业主正文各用各的说法（同"表格里'旁边'指列头"那条的同一批处置）。
+  - {id: lkp-storage-density-baseline, name: 收纳密度基准, number_class: analysis, value_kind: range, value: {min: 0.25, max: 0.35}, unit: "米/㎡",
      source: "内部规范 §5.7（基准值明确标注待校准）",
      source_pending: "★ 无外部真源。转正路径只能是埋点信号（用户实际反馈够不够）——规则 4.10a"}
-  - {id: lkp-storage-total-meters, name: 全屋收纳总延米, number_class: analysis, value_kind: single, formula: "Σ 各柜体投影延米（从定稿平面 gen-evaluated 求得）", unit: 延米}
+  - {id: lkp-storage-total-meters, name: 全屋收纳沿墙总长, number_class: analysis, value_kind: single, formula: "Σ 各柜体投影沿墙长度（从定稿平面 gen-evaluated 求得）", unit: 米}
   # 原有 tolerance: 0.1 已删（用户裁决 2026-08-30，规则 4.10e）。查证：它自种子首版（b036bd4，
   # 系统批量编译那一轮）就在，而 source 只写"行业通行（二八原则）"——二八原则给的是 0.8、没给 ±0.1，
   # 同条自己还写着"无外部标准，属经验条目"。即**它是编译时自造的精度声明，没有源**。

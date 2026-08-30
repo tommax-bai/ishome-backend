@@ -27,7 +27,11 @@ ARTS = {f"art-{n}" for n in (
     "material-mood space-render walkthrough-video hydro-layout material-chapter storage-chapter "
     "color-soft-chapter budget-chapter hydro-checklist quotation-checklist acceptance-checklist "
     "purchase-checklist").split()}
-UNITS = {"mm","m","K","Ra","°","lx","㎡","投影㎡","延米","延米/㎡","点位","倍","种","比率","×环境照度","元","±比例"}
+UNITS = {"mm","m","米","米/㎡","K","Ra","°","lx","㎡","投影㎡","延米","延米/㎡","点位","倍","种","比率","元","±比例"}
+# 「×环境照度」已下架（2026-08-30 晚改源为「倍」）：单位自本轮起由写手写进正文，而它含灯光域
+# 禁词「照度」——同一个词既是计量单位又禁止对业主说，机器会一边要求写一边因为写了而打回。
+# 「延米」保留在白名单里（它是真单位，将来采购/报价页要用），但收纳域的两条已改源为「米」，
+# 因为「延米」是该域禁词。撞不撞由下面 unit_collides_banned_term 按域判，不靠这张表判。
 # 可定位 = 外部形态（标准号/URL/域名/信息价）。内部引用（"内部规范 §x.x"）不算——
 # 经验条目借内部条文号伪装可核，正是规则 4.10b 要堵的路（首跑即误判过一批，故收紧）。
 LOCATOR = re.compile(r"GB[/T ]?\s?\d|JGJ\s?\d|https?://|\.com|\.cn|信息价")
@@ -210,6 +214,24 @@ def check_value_shape(merged, ctx):
                           f"不由每次改源临场发挥）")
 
 
+def banned_terms_of(domain_dir: str, docs: dict) -> set[str]:
+    """该域禁词 = 跨域表 + persona 的 domain_extra（与 reportgen collect_banned_terms 同口径）。"""
+    terms: set[str] = set()
+    common = docs.get(os.path.join(SEEDS, "_common", "banned-terms.yaml")) or {}
+    def walk(x):
+        if isinstance(x, str): terms.add(x)
+        elif isinstance(x, list):
+            for i in x: walk(i)
+        elif isinstance(x, dict):
+            for v in x.values(): walk(v)
+    walk(common.get("items", []))
+    persona = docs.get(os.path.join(SEEDS, domain_dir, "persona.yaml")) or {}
+    for it in persona.get("items", [persona]):
+        bt = (it or {}).get("banned_terms") or {}
+        walk(bt.get("domain_extra", []))
+    return {t for t in terms if isinstance(t, str) and t.strip()}
+
+
 param_ids, check_ids = set(), set()
 files = sorted(glob.glob(os.path.join(SEEDS, "*", "*.yaml")))
 docs = {}
@@ -296,6 +318,16 @@ for f, d in docs.items():
         # 留着那条回退等于给"元信息混进 value"留一条仍然能通过核验的路
         u = merged.get("unit")
         if u and str(u) not in UNITS: errors.append(f"{ctx}: 单位不在白名单 [{u}]")
+        # 单位撞本域禁词即拒灌（2026-08-30 晚）：单位自本轮起**由写手写进正文**（我们预制、它照抄），
+        # 而禁词是不许对业主说的词——同一个词两种身份，机器会一边要求它写、一边因为它写了而打回，
+        # 这一章永远过不了检。拦在这里是最早的一道；reportgen 侧同名守卫留着，是为了那些**已经
+        # 发出去的老 release**（快照不可变，改源只能影响下一次发版）。两处同判据不同射程，非重复。
+        if u:
+            dom_dir = os.path.basename(os.path.dirname(f))
+            for term in banned_terms_of(dom_dir, docs):
+                if term in str(u):
+                    errors.append(f"{ctx}: 单位 [{u}] 含本域禁词「{term}」——单位要由写手写进正文，"
+                                  f"禁词写了必被打回；改源换一个能写给业主看的单位")
         # 量纲必填（用户裁决 2026-08-29 晚，立案=lkp-tv-distance 正文渲出裸数无量纲）：
         # 带数值或公式的资产须有单位；真正无量纲的显式 dimensionless: true 豁免——
         # 豁免是声明"无单位是事实"，不是"忘了填"的同义词。
