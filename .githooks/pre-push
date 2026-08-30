@@ -13,7 +13,9 @@ echo "== pre-push: gradlew build (compile + checkstyle + pmd + spotless + archun
 echo "== pre-push: channel literal whitelist"
 ./scripts/check-channel-literals.sh
 if command -v uv >/dev/null 2>&1; then
-  echo "== pre-push: rulebook 种子核验跑批（规则 4.10a/4.10b）"
+  echo "== pre-push: 核验跑批自己的回归（规则 1.9 两层模型，正反各一）"
+  ./scripts/rulebook/test_verify_seeds.py >/dev/null || { ./scripts/rulebook/test_verify_seeds.py; exit 1; }
+  echo "== pre-push: rulebook 种子核验跑批（规则 4.10a/4.10b/1.9）"
   ./scripts/rulebook/verify_seeds.py >/dev/null || { ./scripts/rulebook/verify_seeds.py; exit 1; }
 fi
 echo "== pre-push: OK"

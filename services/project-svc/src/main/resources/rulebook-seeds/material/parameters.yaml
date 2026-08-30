@@ -1,11 +1,16 @@
+# parameter 形态 · 用材域
+# 值形态：规则 1.9（v2.8）两层模型。档位比较的项名与造价域收敛为同一形态
+# {高档}-vs-{低档}，两侧档名取自 tier 闭集 low|medium|high——原 mid_vs_low/high_vs_mid
+# 与造价域的 舒适_vs_基础/品质_vs_舒适 是同一概念的两套名（规则 1.8 第四条禁）。
 domain: material
 form: parameter
 release: null
 default_calibration: draft
 items:
-  - {id: lkp-material-variety-max, name: 全屋主材种类上限, number_class: analysis, value: {max: 5}, unit: 种,
+  - {id: lkp-material-variety-max, name: 全屋主材种类上限, number_class: analysis, value_kind: range, value: {max: 5}, unit: 种,
      source: "内部规范 §5.6（经验条目，无外部真源）"}
-  - {id: lkp-material-warm-cool-ratio, name: 冷暖材质比例带, number_class: analysis, dimensionless: true, value: {min: 0.3, max: 0.7},
+  - {id: lkp-material-warm-cool-ratio, name: 冷暖材质比例带, number_class: analysis, dimensionless: true, value_kind: range, value: {min: 0.3, max: 0.7},
      source: "内部规范 §5.6（经验条目）"}
-  - {id: lkp-material-tier-gap, name: 三档替代价差带, number_class: analysis, value: {mid_vs_low: [1.4, 2.0], high_vs_mid: [1.5, 2.5]}, unit: 倍,
+  - {id: lkp-material-tier-gap, name: 三档替代价差带, number_class: analysis, value_kind: comparison,
+     value: {medium-vs-low: {min: 1.4, max: 2.0}, high-vs-medium: {min: 1.5, max: 2.5}}, unit: 倍,
      source_pending: "公开主材行情 —— 需接单价库（attr-unit-price）后由数据算出，不写死"}

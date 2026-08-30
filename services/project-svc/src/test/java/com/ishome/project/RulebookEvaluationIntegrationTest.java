@@ -84,10 +84,11 @@ class RulebookEvaluationIntegrationTest {
         """
         {"release_tag":"lighting@v1","domain":"lighting","assets":{"parameters":[
           {"asset_id":"lkp-illuminance-living","name":"起居室照度标准值","number_class":"analysis",
-           "value":{"general":100,"reading":300,"unit":"lx"},"formula":null,"unit":"lx",
+           "value_kind":"scenario","value":{"general":100,"reading":300},"formula":null,"unit":"lx",
+           "reference_plane":"0.75m 水平面",
            "calibration":"calibrated","source":"GB 50034-2013 表5.2.1","version":1},
           {"asset_id":"lkp-cct-living","name":"起居与卧室色温","number_class":"selection",
-           "value":{"v":3000},"formula":null,"unit":"K","calibration":"draft","source":"行业通行","version":1}],
+           "value_kind":"single","value":3000,"formula":null,"unit":"K","calibration":"draft","source":"行业通行","version":1}],
           "personas":[{"asset_id":"persona-lighting","version":1}]}}
         """);
     insertRelease(
@@ -105,13 +106,13 @@ class RulebookEvaluationIntegrationTest {
            "severity":"recommended","calibration":"draft","consumers":["art-hydro-checklist"],"version":1}],
           "parameters":[
           {"asset_id":"lkp-counter-height","name":"橱柜台面高","number_class":"selection",
-           "value":null,"formula":"主厨身高/2 + [50,100]","unit":"mm","calibration":"draft","source":"行业通行","version":1},
+           "value_kind":"range","value":null,"formula":"主厨身高/2 + [50,100]","unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-wardrobe-rod","name":"衣柜挂杆高","number_class":"selection",
-           "value":null,"formula":"身高 × 1.2","unit":"mm","calibration":"draft","source":"行业通行","version":1},
+           "value_kind":"single","value":null,"formula":"身高 × 1.2","unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-passage-main","name":"主通道净宽","number_class":"analysis",
-           "value":{"min":900},"formula":null,"unit":"mm","calibration":"draft","source":"行业通行","version":1},
+           "value_kind":"range","value":{"min":900},"formula":null,"unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-tv-distance","name":"电视观看距离","number_class":"analysis",
-           "value":null,"formula":"屏高 × [3,4]","unit":null,"calibration":"draft","source":"行业通行","version":1}],
+           "value_kind":"range","value":null,"formula":"屏高 × [3,4]","unit":null,"calibration":"draft","source":"行业通行","version":1}],
           "personas":[{"asset_id":"persona-ergonomics","identity":"你在为这一家人校核尺寸。",
            "judgment_samples":[],"assertion_budget":[{"predicate":"通道净宽","requires":["lkp-passage-main"]}],
            "banned_terms":{"domain_extra":["人体工学"]},"version":1}],
@@ -138,7 +139,7 @@ class RulebookEvaluationIntegrationTest {
            "calibration":"draft","consumers":["art-budget-chapter"],"version":1}],
           "parameters":[
           {"asset_id":"lkp-budget-confidence-width","name":"置信到区间宽度的映射","number_class":"analysis",
-           "value":{"high":"±10%","medium":"±20%","low":"±35%"},"formula":null,"unit":null,
+           "value_kind":"tier","value":{"high":0.15,"medium":0.30,"low":0.50},"formula":null,"unit":"±比例",
            "calibration":"draft","source":"内部规范 §5.9","version":1}],
           "attributes":[
           {"asset_id":"attr-price-hydro-labor-sqm","name":"水电改造人工费","entity_type":"work_item",
@@ -185,9 +186,21 @@ class RulebookEvaluationIntegrationTest {
         pkg.releases());
 
     assertEquals(Map.of("min", 900, "max", 950), anchor(pkg, "lkp-counter-height").value());
-    assertEquals(Map.of("v", 2136L), anchor(pkg, "lkp-wardrobe-rod").value());
+    assertEquals(2136L, anchor(pkg, "lkp-wardrobe-rod").value());
     assertFalse(anchor(pkg, "lkp-illuminance-living").degraded());
     assertTrue(anchor(pkg, "lkp-cct-living").degraded());
+    // 两层模型在真库快照形态上跑通（规则 1.9，v2.8）：分场景照度是多项落点，正文可引用其中一项；
+    // 单位与参考平面各归各的字段——value 里只剩项（元信息与项同层时 {lkp-x.unit} 就是合法写法）
+    ReportAnchor living = anchor(pkg, "lkp-illuminance-living");
+    assertEquals("scenario", living.valueKind());
+    assertEquals(Map.of("general", 100, "reading", 300), living.value());
+    assertEquals("0.75m 水平面", living.referencePlane());
+    assertEquals("lx", living.unit());
+    // 单值落点是标量不是 {v: …} 壳：v 是无语义键（规则 1.7），壳在则 {lkp-x.v} 就写得出来
+    assertEquals("single", anchor(pkg, "lkp-cct-living").valueKind());
+    assertEquals(3000, anchor(pkg, "lkp-cct-living").value());
+    // 单价投影恒为区间（类别是投影规则的属性，不逐条配）
+    assertEquals("range", anchor(pkg, "lkp-price-hydro-labor-sqm").valueKind());
     // 造价章的金额来自单价库投影（规则 5.15）：城市档命中 breakdown 即取该档，量纲是元每计价单位
     assertEquals(Map.of("min", 60, "max", 68), anchor(pkg, "lkp-price-hydro-labor-sqm").value());
     assertEquals("元/㎡", anchor(pkg, "lkp-price-hydro-labor-sqm").unit());
@@ -302,6 +315,10 @@ class RulebookEvaluationIntegrationTest {
     JsonNode counter = json.path("anchors").path(0);
     assertEquals("lkp-counter-height", counter.path("lkpId").asText());
     assertEquals("REFERENCE_ONLY", counter.path("presentation").asText());
+    // 两层模型的线上字面量（规则 1.9，v2.8）：valueKind 是契约必填字段，成文线按它分支不靠推断；
+    // 无参考平面的落点照实给 null——编一个反而给渲染层造出假的"在哪个面上量"
+    assertEquals("range", counter.path("valueKind").asText());
+    assertTrue(counter.path("referencePlane").isNull());
     // 标注纪律的线上字面量（规则 4.10c，v2.4）：成文线按同样的字面量解析，改一个字母两侧就对不上
     JsonNode provenance = counter.path("provenance");
     assertTrue(provenance.path("annotationRequired").asBoolean());

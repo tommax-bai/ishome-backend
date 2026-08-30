@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -50,6 +51,26 @@ public final class RulebookEvaluator {
 
   /** 单价资产的 entity_type（contracts {@code rulebook/attributes/work_item.schema.json}）。 */
   private static final String ENTITY_TYPE_WORK_ITEM = "work_item";
+
+  /**
+   * 单价落点的值类别（规则 1.9，v2.8）：**区间**——投影出来的恒是 {@code {min,max}}，一个匿名项。
+   *
+   * <p>常量而非逐条配置，理由同上面的 {@code NUMBER_CLASS_ANALYSIS}：类别是**投影规则**的属性，不是 单条单价资产的属性——attributes 表没有
+   * value_kind 列，而"单价投影出什么形态"对每一条都是同一个答案。 逐条配等于把同一件事写两处，两处一旦不一致，以哪处为准没有答案。
+   */
+  private static final String VALUE_KIND_RANGE = "range";
+
+  /**
+   * 公式求出单值时的值类别（规则 1.9）：{@code single} = 一个匿名项，值是数。
+   *
+   * <p>这里**不做推断**，只做兜底：形态的权威声明是资产自己的 {@code value_kind}（种子里逐条写、核验逐条拦）。 老 release 快照没有这一列，读出来是
+   * {@code null}——而契约 {@code anchors[].valueKind} 是必填字段， 下发 null 等于产出一个不合契约的包。故按求出来的**实际形态**兜底填：标量
+   * → single、{@code {min,max}} → range。
+   */
+  private static final String VALUE_KIND_SINGLE = "single";
+
+  /** 区间的两个边界键。**它们是项的值形态不是项**——故 {@code {lkp-x.min}} 在引用语法上不存在（规则 1.9 一）。 */
+  private static final Set<String> RANGE_BOUNDS = Set.of("min", "max");
 
   /**
    * 单价落点的量纲前缀：单价的量纲是"**元每计价单位**"。
@@ -252,7 +273,10 @@ public final class RulebookEvaluator {
             attribute.name(),
             NUMBER_CLASS_ANALYSIS,
             unit == null ? null : PRICE_UNIT_PREFIX + unit,
+            VALUE_KIND_RANGE,
             value,
+            // 单价没有参考平面：那是照度一类"在哪个面上量"的量才有的元信息，编一个反而给标注层造假
+            null,
             releaseTag,
             attribute.source(),
             attribute.calibration(),
@@ -312,7 +336,7 @@ public final class RulebookEvaluator {
       LocalDate evaluatedOn,
       List<ReportAnchor> anchors,
       List<GapRecord> gaps) {
-    if (parameter.value() != null && !parameter.value().isEmpty()) {
+    if (hasValue(parameter.value())) {
       anchors.add(anchor(parameter, releaseTag, parameter.value(), evaluatedOn));
       return;
     }
@@ -320,7 +344,7 @@ public final class RulebookEvaluator {
       gaps.add(new GapRecord(parameter.assetId(), "empty_definition", "参数无值无公式"));
       return;
     }
-    Map<String, Object> computed =
+    Object computed =
         switch (parameter.assetId()) {
           case "lkp-counter-height" ->
               input.chiefHeightMm() == null
@@ -364,16 +388,15 @@ public final class RulebookEvaluator {
    * effective_*} 是实体列），造价章投影落地时由 attribute 侧填入；此处照实给 {@code null}，不为参数表预造列。
    */
   private ReportAnchor anchor(
-      ParameterAsset parameter,
-      String releaseTag,
-      Map<String, Object> value,
-      LocalDate evaluatedOn) {
+      ParameterAsset parameter, String releaseTag, Object value, LocalDate evaluatedOn) {
     return new ReportAnchor(
         parameter.assetId(),
         parameter.name(),
         parameter.numberClass(),
         parameter.unit(),
+        valueKindOf(parameter, value),
         value,
+        parameter.referencePlane(),
         releaseTag,
         parameter.source(),
         parameter.calibration(),
@@ -383,6 +406,36 @@ public final class RulebookEvaluator {
         presentationPolicy.decide(parameter.calibration()));
   }
 
+  /**
+   * 落点的值类别：**以资产的声明为准**，缺席时按求出来的实际形态兜底（规则 1.9）。
+   *
+   * <p>声明优先不是客气话：{@code scenario} 与 {@code component} 的 value 形态一模一样（都是项名 → 数），
+   * 差别只在项名走哪份受控词表——从值的形状根本推不出来。兜底只覆盖推得出的那两种（标量 → {@code single}、 {@code {min,max}} → {@code
+   * range}），且只在老快照缺列时起作用；推不出就照实给 {@code null}， 不猜一个类别混过契约（猜错的类别会让成文线按错误的词表校项名，比缺字段更难查）。
+   */
+  private static String valueKindOf(ParameterAsset parameter, Object value) {
+    if (parameter.valueKind() != null && !parameter.valueKind().isBlank()) {
+      return parameter.valueKind();
+    }
+    if (value instanceof Number) {
+      return VALUE_KIND_SINGLE;
+    }
+    if (value instanceof Map<?, ?> map
+        && !map.isEmpty()
+        && RANGE_BOUNDS.containsAll(map.keySet())) {
+      return VALUE_KIND_RANGE;
+    }
+    return null;
+  }
+
+  /** 空 Map 与 null 都算"没有值"：快照里 {@code value: {}} 与缺席是同一件事，都走公式或 gap-。 */
+  private static boolean hasValue(Object value) {
+    if (value == null) {
+      return false;
+    }
+    return !(value instanceof Map<?, ?> map) || !map.isEmpty();
+  }
+
   private static Map<String, Object> range(int min, int max) {
     Map<String, Object> value = new LinkedHashMap<>();
     value.put("min", min);
@@ -390,9 +443,13 @@ public final class RulebookEvaluator {
     return value;
   }
 
-  private static Map<String, Object> point(long v) {
-    Map<String, Object> value = new LinkedHashMap<>();
-    value.put("v", v);
-    return value;
+  /**
+   * 公式求出的单值：**标量**，不再包 {@code {v: …}} 壳。
+   *
+   * <p>{@code v} 是无语义键（规则 1.7 禁），而 v2.8 的两层模型里"一个匿名项，值是数"的形态就是标量本身—— 壳一旦在，{@code {lkp-x.v}}
+   * 就是写得出来的引用，那正是这次要用结构堵死的东西。
+   */
+  private static Long point(long v) {
+    return v;
   }
 }

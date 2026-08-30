@@ -99,9 +99,12 @@ def rows():
                     conflict=bool(m.get("conflict", False)),
                     consumers=J(m.get("consumers", [])), version=ver))
             elif form == "parameter":
-                unit = m.get("unit") or (m.get("value") or {}).get("unit") if isinstance(m.get("value"), dict) else m.get("unit")
+                # 单位只认资产自己的 unit 字段：v2.8 起 value 里不再有 unit（规则 1.9 二"元信息出
+                # value"），原先那条"value 里也找一找"的回退等于给元信息回流留一条活路
+                unit = m.get("unit")
                 yield ("parameters", ctx, aid, dict(
                     asset_id=aid, domain=domain, name=m["name"], number_class=m["number_class"],
+                    value_kind=m.get("value_kind"), reference_plane=m.get("reference_plane"),
                     value=J(m.get("value")) if m.get("value") is not None else None,
                     formula=m.get("formula"), unit=str(unit) if unit else None,
                     linked=J(m.get("linked")) if m.get("linked") else None,

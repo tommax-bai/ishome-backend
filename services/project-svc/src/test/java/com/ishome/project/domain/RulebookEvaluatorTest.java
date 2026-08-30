@@ -28,6 +28,7 @@ import com.ishome.project.domain.rulebook.TriggeredRule;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** 求值纯函数：三条求值路径、降档门禁、规则触发判定、可重放与顺序无关性（规则 8.2/4.10、图 v0.2 §0）。 */
@@ -38,9 +39,11 @@ class RulebookEvaluatorTest {
   /** 求值基准日固定：它是入参不是时钟，测试里更不能取当天——取当天等于让断言随日历漂移。 */
   private static final LocalDate EVALUATED_ON = LocalDate.of(2026, 8, 29);
 
+  /** {@code valueKind} 显式入参：两层模型里类别是**声明**不是推断（规则 1.9），夹具照实写。 */
   private static ParameterAsset param(
-      String id, String name, Map<String, Object> value, String formula, String calibration) {
-    return new ParameterAsset(id, name, "analysis", value, formula, "mm", calibration, "测试源", 1);
+      String id, String name, String valueKind, Object value, String formula, String calibration) {
+    return new ParameterAsset(
+        id, name, "analysis", valueKind, value, null, formula, "mm", calibration, "测试源", 1);
   }
 
   private static final PersonaAsset PERSONA =
@@ -112,12 +115,19 @@ class RulebookEvaluatorTest {
           "ergonomics",
           "ergonomics@v1",
           List.of(
-              param("lkp-counter-height", "橱柜台面高", null, "主厨身高/2 + [50,100]", "draft"),
-              param("lkp-wardrobe-rod", "衣柜挂杆高", null, "身高 × 1.2", "draft"),
-              param("lkp-passage-main", "主通道净宽", Map.of("min", 900), "calibrated", "calibrated"),
-              param("lkp-tv-distance", "电视观看距离", null, "屏高 × [3,4]", "draft"),
-              param("lkp-mystery", "无可执行形态", null, "神秘公式", "draft"),
-              param("lkp-empty", "空定义", null, null, "draft")),
+              param("lkp-counter-height", "橱柜台面高", "range", null, "主厨身高/2 + [50,100]", "draft"),
+              param("lkp-wardrobe-rod", "衣柜挂杆高", "single", null, "身高 × 1.2", "draft"),
+              param(
+                  "lkp-passage-main",
+                  "主通道净宽",
+                  "range",
+                  Map.of("min", 900),
+                  "calibrated",
+                  "calibrated"),
+              param("lkp-tv-distance", "电视观看距离", "range", null, "屏高 × [3,4]", "draft"),
+              // valueKind 缺席的公式落点（真库同款＝lkp-budget-driver）：求不出，也就不产出落点
+              param("lkp-mystery", "无可执行形态", null, null, "神秘公式", "draft"),
+              param("lkp-empty", "空定义", null, null, null, "draft")),
           List.of(),
           List.of(ELDER_GRAB_BAR_RULE, DUAL_COOK_RULE),
           List.of(PERSONA),
@@ -143,7 +153,9 @@ class RulebookEvaluatorTest {
     assertTrue(counter.degraded());
     assertEquals("ergonomics@v1", counter.basisTag());
 
-    assertEquals(Map.of("v", 2136L), anchor(pkg, "lkp-wardrobe-rod").value());
+    // 公式求出的单值是**标量**：v 壳去掉后 {lkp-x.v} 这种引用连写都写不出来（规则 1.9 一）
+    assertEquals(2136L, anchor(pkg, "lkp-wardrobe-rod").value());
+    assertEquals("single", anchor(pkg, "lkp-wardrobe-rod").valueKind());
 
     ReportAnchor passage = anchor(pkg, "lkp-passage-main");
     assertEquals(Map.of("min", 900), passage.value());
@@ -214,7 +226,9 @@ class RulebookEvaluatorTest {
                 "lkp-socket-height",
                 "常用插座高度",
                 "locating",
+                "range",
                 Map.of("min", 300, "max", 350),
+                null,
                 null,
                 "mm",
                 calibration,
@@ -310,6 +324,165 @@ class RulebookEvaluatorTest {
     assertEquals(
         List.of("DISCLAIM_APPENDIX", "DISCLAIM_RENDER", "GUIDE_SITE_CHECK"),
         pkg.lockedTextsByDomain().get("ergonomics"));
+  }
+
+  // ── 两层模型：七类 valueKind 的产出形态（规则 1.9，规范 v2.8） ───────────────────────
+
+  /** 带参考平面的落点夹具：单位与参考平面都是**元信息**，各有各的字段，不进 value（规则 1.9 二）。 */
+  private static ParameterAsset illuminance() {
+    return new ParameterAsset(
+        "lkp-illuminance-living",
+        "起居室照度标准值",
+        "analysis",
+        "scenario",
+        Map.of("general", 100, "reading", 300),
+        "0.75m 水平面",
+        null,
+        "lx",
+        "calibrated",
+        "GB/T 50034-2024 表5.2.1",
+        1);
+  }
+
+  private static ReleaseSnapshot kindsSnapshot() {
+    return new ReleaseSnapshot(
+        "lighting",
+        "lighting@v9",
+        List.of(
+            param("lkp-cct-living", "起居与卧室色温", "single", 3000, null, "draft"),
+            param("lkp-bed-height", "床面高", "range", Map.of("min", 450, "max", 500), null, "draft"),
+            illuminance(),
+            param(
+                "lkp-budget-confidence-width",
+                "置信到区间宽度的映射",
+                "tier",
+                Map.of("high", 0.15, "medium", 0.30, "low", 0.50),
+                null,
+                "draft"),
+            param(
+                "lkp-shower-clear",
+                "淋浴房内空",
+                "dimension",
+                Map.of("depth", Map.of("min", 800), "width", Map.of("min", 800)),
+                null,
+                "draft"),
+            param(
+                "lkp-budget-share",
+                "分项造价占比带",
+                "component",
+                Map.of(
+                    "main-material", Map.of("min", 0.20, "max", 0.35),
+                    "demolition", Map.of("min", 0.03, "max", 0.08)),
+                null,
+                "draft"),
+            param(
+                "lkp-material-tier-gap",
+                "三档替代价差带",
+                "comparison",
+                Map.of("high-vs-medium", Map.of("min", 1.5, "max", 2.5)),
+                null,
+                "draft")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  /**
+   * 七类各自的产出形态：类别**随落点下发**，成文线据此分支、不靠推断键名（规则 1.9 一）。
+   *
+   * <p>`single` 是标量、`range` 是 {@code {min,max}}、其余五类是 项名 → 标量|区间——三种形态而不是一种，
+   * 正是"正文能引用其中一项"的结构前提：整条落点只能整条引用时，"沙发旁读书那块要单独加亮"这句话没有 合法写法，模型只能自造占位符（六轮 0/6 的立案材料，规范 §14.13）。
+   */
+  @Test
+  void carriesEveryValueKindInItsOwnShape() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(List.of(kindsSnapshot()), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
+
+    assertEquals("single", anchor(pkg, "lkp-cct-living").valueKind());
+    assertEquals(3000, anchor(pkg, "lkp-cct-living").value());
+
+    assertEquals("range", anchor(pkg, "lkp-bed-height").valueKind());
+    assertEquals(Map.of("min", 450, "max", 500), anchor(pkg, "lkp-bed-height").value());
+
+    assertEquals("scenario", anchor(pkg, "lkp-illuminance-living").valueKind());
+    assertEquals(
+        Map.of("general", 100, "reading", 300), anchor(pkg, "lkp-illuminance-living").value());
+
+    assertEquals("tier", anchor(pkg, "lkp-budget-confidence-width").valueKind());
+    assertEquals(
+        Map.of("high", 0.15, "medium", 0.30, "low", 0.50),
+        anchor(pkg, "lkp-budget-confidence-width").value());
+
+    assertEquals("dimension", anchor(pkg, "lkp-shower-clear").valueKind());
+    assertEquals(
+        Map.of("depth", Map.of("min", 800), "width", Map.of("min", 800)),
+        anchor(pkg, "lkp-shower-clear").value());
+
+    assertEquals("component", anchor(pkg, "lkp-budget-share").valueKind());
+    assertEquals(
+        Map.of(
+            "main-material", Map.of("min", 0.20, "max", 0.35),
+            "demolition", Map.of("min", 0.03, "max", 0.08)),
+        anchor(pkg, "lkp-budget-share").value());
+
+    assertEquals("comparison", anchor(pkg, "lkp-material-tier-gap").valueKind());
+    assertEquals(
+        Map.of("high-vs-medium", Map.of("min", 1.5, "max", 2.5)),
+        anchor(pkg, "lkp-material-tier-gap").value());
+  }
+
+  /**
+   * 元信息不与项同层（规则 1.9 二）：单位在 {@code unit}、参考平面在 {@code referencePlane}，{@code value} 里只有项。
+   *
+   * <p>理由不是整洁：只要它们与项同层，{@code {lkp-x.unit}}（引用出一个单位字符串）就是语法上合法的 写法，"别那么写"这种约定管不住——所以让它写不出来。
+   */
+  @Test
+  void keepsMetadataOutOfValue() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(List.of(kindsSnapshot()), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
+
+    ReportAnchor illuminance = anchor(pkg, "lkp-illuminance-living");
+    assertEquals("lx", illuminance.unit());
+    assertEquals("0.75m 水平面", illuminance.referencePlane());
+    assertEquals(Set.of("general", "reading"), ((Map<?, ?>) illuminance.value()).keySet());
+    for (ReportAnchor each : pkg.anchors()) {
+      if (each.value() instanceof Map<?, ?> value) {
+        assertFalse(value.containsKey("unit"), each.lkpId() + " 的 value 里混进了 unit");
+        assertFalse(value.containsKey("plane"), each.lkpId() + " 的 value 里混进了 plane");
+      }
+    }
+  }
+
+  /**
+   * 老 release 快照没有 value_kind 列时按**实际形态**兜底：标量 → single、{@code {min,max}} → range。
+   *
+   * <p>兜底不是推断的翻案：项名映射一律给 {@code null}——scenario 与 component 的 value 形态一模一样，
+   * 差别只在项名走哪份受控词表，从值的形状推不出来。猜一个填进去，成文线就会按错误的词表校项名。
+   */
+  @Test
+  void fallsBackToActualShapeWhenSnapshotPredatesValueKind() {
+    ReleaseSnapshot legacy =
+        new ReleaseSnapshot(
+            "lighting",
+            "lighting@v1",
+            List.of(
+                param("lkp-cct-living", "起居色温", null, 3000, null, "draft"),
+                param("lkp-bed-height", "床面高", null, Map.of("min", 450, "max", 500), null, "draft"),
+                param("lkp-color-ratio", "配色比例", null, Map.of("main", 0.6), null, "draft")),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of());
+
+    ReportDataPackage pkg =
+        evaluator.evaluate(List.of(legacy), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
+
+    assertEquals("single", anchor(pkg, "lkp-cct-living").valueKind());
+    assertEquals("range", anchor(pkg, "lkp-bed-height").valueKind());
+    assertNull(anchor(pkg, "lkp-color-ratio").valueKind());
   }
 
   /** 过门的定位数字不触发派生必挂：现场复核话术挂的是"没依据"，不是"是定位数字"。 */
@@ -511,7 +684,7 @@ class RulebookEvaluatorTest {
         new ReleaseSnapshot(
             "lighting",
             "lighting@v1",
-            List.of(param("lkp-cct-living", "起居色温", Map.of("v", 3000), null, "draft")),
+            List.of(param("lkp-cct-living", "起居色温", "single", 3000, null, "draft")),
             List.of(),
             List.of(),
             List.of(),

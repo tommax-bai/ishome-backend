@@ -13,7 +13,6 @@ import com.ishome.project.interfaces.rest.ReportsController;
 import com.ishome.project.testsupport.InMemoryReleaseRepository;
 import com.ishome.project.testsupport.RecordingReportComposeGateway;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,7 +47,9 @@ class ReportsEndpointTest {
                   "lkp-socket-height",
                   "插座中心高",
                   "locating",
-                  Map.of("v", 300),
+                  "single",
+                  300,
+                  null,
                   null,
                   "mm",
                   "draft",

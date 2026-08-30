@@ -1,17 +1,26 @@
+# parameter 形态 · 收纳域
+# 值形态：规则 1.9（v2.8）两层模型——value_kind 声明落点由哪种项构成，value 只放值。
+#       行李箱仓位的自造缩写 w/d/h 改为维度闭集 depth/width/height；挂/叠/抽三项是 component，
+#       项名登记在 contracts registries/anchor_items（受控词表，核验按词表拒灌）。
 domain: storage
 form: parameter
 release: null
 default_calibration: draft
 items:
-  - {id: lkp-storage-density-baseline, name: 收纳延米密度基准, number_class: analysis, value: {min: 0.25, max: 0.35}, unit: "延米/㎡",
+  - {id: lkp-storage-density-baseline, name: 收纳延米密度基准, number_class: analysis, value_kind: range, value: {min: 0.25, max: 0.35}, unit: "延米/㎡",
      source: "内部规范 §5.7（基准值明确标注待校准）",
      source_pending: "★ 无外部真源。转正路径只能是埋点信号（用户实际反馈够不够）——规则 4.10a"}
-  - {id: lkp-storage-total-meters, name: 全屋收纳总延米, number_class: analysis, formula: "Σ 各柜体投影延米（从定稿平面 gen-evaluated 求得）", unit: 延米}
-  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, dimensionless: true, value: {v: 0.8, tolerance: 0.1},
+  - {id: lkp-storage-total-meters, name: 全屋收纳总延米, number_class: analysis, value_kind: single, formula: "Σ 各柜体投影延米（从定稿平面 gen-evaluated 求得）", unit: 延米}
+  # tolerance 判为**元信息不是项**（规则 1.9 二）：它不是能进正文的那种项（"{lkp-x.tolerance}"渲出一个
+  # 光秃秃的 0.1 对业主没有意义），而是这个值的精度声明，与 unit/reference_plane 同类，故移出 value。
+  # ★ 遗留缺口（坦白，不自行折算）：0.8±0.1 是规则 1.9 两种值形态（标量 / {min,max}）之外的第三种写法。
+  # 折成 {min: 0.7, max: 0.9} 要凭空造出两个源数据里没有的数字，本轮"值一个都不动"的纪律不允许，
+  # 故保留原值原字段待裁；契约面 anchors[] 无 tolerance 位，当前渲染只到 0.8。
+  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, dimensionless: true, value_kind: single, value: 0.8, tolerance: 0.1,
      source: "行业通行（二八原则）", source_pending: "无外部标准，属经验条目"}
-  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, dimensionless: true, value: {hang: 0.5, fold: 0.3, drawer: 0.2},
+  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, dimensionless: true, value_kind: component, value: {hang: 0.5, fold: 0.3, drawer: 0.2},
      source_pending: "随 Q-STORAGE 衣物量实测回流校准"}
-  - {id: lkp-long-hang-height, name: 长衣区净高, number_class: selection, value: {min: 1400}, unit: mm,
+  - {id: lkp-long-hang-height, name: 长衣区净高, number_class: selection, value_kind: range, value: {min: 1400}, unit: mm,
      linked: [ergonomics/lkp-wardrobe-rod]}
-  - {id: lkp-luggage-bay, name: 行李箱仓位净尺寸, number_class: selection, value: {w: 500, d: 350, h: 800}, unit: mm,
+  - {id: lkp-luggage-bay, name: 行李箱仓位净尺寸, number_class: selection, value_kind: dimension, value: {depth: 350, height: 800, width: 500}, unit: mm,
      source_pending: "常见 24/28 寸箱体外廓 —— 取厂商公开尺寸交叉验证"}

@@ -1,21 +1,33 @@
+# parameter 形态 · 造价域
+# 值形态：规则 1.9（v2.8）两层模型——value_kind 声明落点由哪种项构成，value 只放值。
+#       七分项中文项名一次性改为 component 受控词表的 ASCII kebab-case（词表见 contracts
+#       registries/anchor_items）；档位比较由中英两套名（舒适_vs_基础 / mid_vs_low）收敛为
+#       {高档}-vs-{低档} 单一形态，两侧档名取自 tier 闭集 low|medium|high。
+#       区间由 [a,b] 数组改写为 {min,max}——min/max 是项的值形态，不是项（规则 1.9 一）。
 domain: budget
 form: parameter
 release: null
 default_calibration: draft
 items:
   - {id: lkp-budget-share, name: 分项造价占比带, number_class: analysis, dimensionless: true,
-     value: {拆改: [0.03,0.08], 水电: [0.08,0.15], 泥木: [0.15,0.25], 油漆: [0.05,0.10],
-             主材: [0.20,0.35], 定制: [0.20,0.35], 软装: [0.08,0.20]},
+     value_kind: component,
+     value: {demolition: {min: 0.03, max: 0.08}, plumbing-electrical: {min: 0.08, max: 0.15},
+             masonry-carpentry: {min: 0.15, max: 0.25}, painting: {min: 0.05, max: 0.10},
+             main-material: {min: 0.20, max: 0.35}, custom-cabinetry: {min: 0.20, max: 0.35},
+             soft-furnishing: {min: 0.08, max: 0.20}},
      source: "首个外部粗锚（run-2026-08-28，口径=总预算含家电，与本表七分项口径不同不换算）：硬装≈50%［45,60］/软装［25,30］/家电［20,25］——住小帮 7000562159881028127 与 7000575444755939854（硬50/软30/家电20）+ 房天下 bj_968686（硬:软:人工 2:1:1，分母口径异）；定制归属两源不一（软装内 60% vs 独立 25%）记源生口径。'水电:泥木:油漆=2:3:5' 疑为摘要错配（油漆占最大不合常理），不采",
      source_3: "run-2026-08-28-2 第三个粗档口径（仍非七分项）：硬装≈35% / 主材≈30% / 家具≈15%（知乎 zhuanlan.zhihu.com/p/663552183 2025 装修预算表，其'硬装'定义=拆改+水电+泥瓦+木工+安装+辅料，**不含主材**）——与 run-2026-08-28 取到的'硬装≈50%'口径互斥：后者的'硬装'含主材。★结论：'硬装'一词在公开源里至少两种互斥定义，占比带的分母与分子口径都不稳定，行情类源无法支撑七分项映射",
      source_pending: "七分项细分占比 ≥2 源 + 城市档。**第三轮仍未取到**——需源内自带七分项口径的**报价单类**数据（装企分项报价单、信息价分部分项），行情文章给不了。★禁止用任何粗档口径换算成七分项（'硬装'定义都不唯一）",
      acquired: run-2026-08-28-2}
+  # ★ 未声明 value_kind（坦白缺口，不硬填）：本条求的是"哪一个分项"，答案是一个 component 项名，
+  # 不是一个数、也不是一个区间——规则 1.9 的两层模型里没有它的位置（一项的值只有这两种）。
+  # 现状不产出落点（公式无可执行形态登记，走 gap-）；形态待裁，裁前不给它安一个假的 value_kind。
   - {id: lkp-budget-driver, name: 总价主驱动项判定, number_class: analysis, dimensionless: true,
      formula: "占比最高且量可变的分项（通常为定制延米或主材档位）"}
-  - {id: lkp-budget-tier-gap, name: 三档情景价差带, number_class: analysis,
-     value: {舒适_vs_基础: [1.3,1.8], 品质_vs_舒适: [1.4,2.2]}, unit: 倍,
+  - {id: lkp-budget-tier-gap, name: 三档情景价差带, number_class: analysis, value_kind: comparison,
+     value: {medium-vs-low: {min: 1.3, max: 1.8}, high-vs-medium: {min: 1.4, max: 2.2}}, unit: 倍,
      source: "首个外部粗锚（run-2026-08-27）：公开行情整装档位 简装 1000-1500 / 精装 2000-2500 / 豪装 3000+ 元/㎡（土巴兔 z349188 等）→ 精/简 ≈1.7-2.0、豪/精 ≥1.2，与本区间部分重叠",
      source_pending: "由 attr-price-* 三档用材差算出精确带，不写死"}
-  - {id: lkp-budget-confidence-width, name: 置信到区间宽度的映射, number_class: analysis,
+  - {id: lkp-budget-confidence-width, name: 置信到区间宽度的映射, number_class: analysis, value_kind: tier,
      value: {high: 0.15, medium: 0.30, low: 0.50}, unit: "±比例",
      note: "低置信=更宽区间（规则 5.15 用户裁决：区间宽度随 source 置信调整）"}

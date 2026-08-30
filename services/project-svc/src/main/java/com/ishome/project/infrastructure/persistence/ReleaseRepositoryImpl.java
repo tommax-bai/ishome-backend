@@ -57,6 +57,10 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
     }
   }
 
+  /**
+   * parameter 形态投影：两层模型（规则 1.9，v2.8）三个字段——{@code value_kind} 声明类别、{@code value} 承载标量或项名映射、{@code
+   * reference_plane} 接住原先挤在 value 里的参考平面。
+   */
   private List<ParameterAsset> parameters(JsonNode assets) {
     List<ParameterAsset> parameters = new ArrayList<>();
     for (JsonNode node : assets.path("parameters")) {
@@ -65,7 +69,9 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("asset_id").asText(),
               node.path("name").asText(),
               node.path("number_class").asText(null),
-              node.path("value").isObject() ? toMap(node.path("value")) : null,
+              node.path("value_kind").asText(null),
+              value(node.path("value")),
+              node.path("reference_plane").asText(null),
               node.path("formula").asText(null),
               node.path("unit").asText(null),
               node.path("calibration").asText("draft"),
@@ -73,6 +79,20 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("version").asInt(1)));
     }
     return parameters;
+  }
+
+  /**
+   * 落点的值：{@code single} 是标量、其余是对象（{@code {min,max}} 或 项名 → 标量|区间）。
+   *
+   * <p>不按键名分支，按 JSON 的类型分支——类别的权威是同级的 {@code value_kind}，此处只负责把 jsonb 原样 搬过来。数值一律走 {@link
+   * JsonNode#numberValue()}：{@code asDouble} 会把 3000 变成 3000.0，落点数值 出现在报告正文里，多一位小数就是一处可见的漂移（规则 8.2
+   * 字节级可重放）。
+   */
+  private Object value(JsonNode node) {
+    if (node.isObject()) {
+      return toMap(node);
+    }
+    return node.isNumber() ? node.numberValue() : null;
   }
 
   /**
