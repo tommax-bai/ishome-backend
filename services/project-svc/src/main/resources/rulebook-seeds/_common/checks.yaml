@@ -32,12 +32,26 @@ items:
     message: "工程量纲未翻译（规则 2.3）"
     decided_by: "规范规则 2.3"
 
+  # retired（2026-08-30，version 1 → 2）：**裁决未变，判据的载体变了**——用户裁决"单边界措辞归
+  # 渲染层"仍然有效，执行它的判据从 release 数据挪进代码（reportgen gate-bound-word-before-ref
+  # 与同族的 gate-unit-after-ref），语义整条被承接，不留空档。
+  # 换载体的理由是它在真跑里漏了自己那条纪律：原 pattern（留档）
+  #     (不少于|不低于|不小于|不超过|不高于|不大于|至少|最少|最多)\s*[（(]?\{lkp-
+  # 靠**固定词表 + 紧邻占位符**匹配，2026-08-30 灯光章成品逐字
+  #     `全屋灯光颜色种类不能多于 不超过 3 种 种。`
+  # 两处全漏：「不能多于」不在表里、「上限」根本不是它认的边界词，而**单位叠字**（「种」写了两遍）
+  # 这一半 regex 根本够不着——要判它得逐字比对这条落点自己的 unit，那只有数据包知道。
+  # 同一条纪律的两半分居 release 数据与代码两处，必然改一处忘一处（坑单第 10 条同型），故合并到
+  # 判得着数据的那一侧。**pattern 一并摘掉**：规则层 gate 按设计不看 status（规则 4.10d，
+  # 明文禁止"修"），留着 pattern 的 retired 行会继续拦截，等于没退役。旧 release 快照里它原样保留，
+  # 回滚＝切回旧 release_tag。
   - id: cr-bound-word-before-placeholder
     type: regex_deny
     scope: [正文, 结论句]
-    pattern: "(不少于|不低于|不小于|不超过|不高于|不大于|至少|最少|最多)\\s*[（(]?\\{lkp-"
+    version: 2
+    status: retired
     message: "占位符前禁边界词——单边界值的措辞（不低于/不超过）由渲染层按值形态出，文句再带一遍即叠字（真跑立案：「不少于不低于 750 mm」一册 7 处）"
-    decided_by: "用户裁决 2026-08-29 晚（单边界措辞归渲染层：边界语义在值里，只说一次）"
+    decided_by: "用户裁决 2026-08-29 晚（单边界措辞归渲染层：边界语义在值里，只说一次）；2026-08-30 换载体退役，语义由 reportgen gate-bound-word-before-ref / gate-unit-after-ref 承接"
 
   - id: cr-no-position-number-on-schematic
     type: field_deny
