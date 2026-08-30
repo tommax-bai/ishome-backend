@@ -10,6 +10,8 @@ archunit = "1.5.0"
 ulid = "5.2.4"
 # 飞书开放平台 SDK（渠道方言，只许 channel-svc 的 feishu adapter 包使用）
 oapiSdk = "2.8.5"
+# 阿里云 OSS SDK（私有产物存放，只许 project-svc 的 infrastructure/client 包使用）
+aliyunOss = "3.17.4"
 junit = "5.12.2"
 googleJavaFormat = "1.36.1"
 checkstyle = "10.20.0"
@@ -22,6 +24,7 @@ grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
 grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
 grpc-netty-shaded = { module = "io.grpc:grpc-netty-shaded", version.ref = "grpc" }
 oapi-sdk = { module = "com.larksuite.oapi:oapi-sdk", version.ref = "oapiSdk" }
+aliyun-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliyunOss" }
 annotations-api = { module = "org.apache.tomcat:annotations-api", version = "6.0.53" }
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 ulid-creator = { module = "com.github.f4b6a3:ulid-creator", version.ref = "ulid" }

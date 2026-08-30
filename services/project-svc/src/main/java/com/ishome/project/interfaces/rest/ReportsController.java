@@ -1,10 +1,14 @@
 package com.ishome.project.interfaces.rest;
 
+import com.ishome.project.application.ReportBookLinkAppService;
 import com.ishome.project.application.ReportDispatchAppService;
 import com.ishome.project.domain.rulebook.ReleaseNotFoundException;
 import com.ishome.project.domain.rulebook.ReportDispatchException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,15 +27,36 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportsController {
 
   private final ReportDispatchAppService reportDispatchAppService;
+  private final ReportBookLinkAppService reportBookLinkAppService;
 
-  public ReportsController(ReportDispatchAppService reportDispatchAppService) {
+  public ReportsController(
+      ReportDispatchAppService reportDispatchAppService,
+      ReportBookLinkAppService reportBookLinkAppService) {
     this.reportDispatchAppService = reportDispatchAppService;
+    this.reportBookLinkAppService = reportBookLinkAppService;
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.ACCEPTED)
   public ReportDispatchResponse dispatch(@RequestBody ReportDispatchRequest request) {
     return ReportDispatchResponse.from(reportDispatchAppService.dispatch(request.toCommand()));
+  }
+
+  /**
+   * 取这份报告册的可打开链接。
+   *
+   * <p>**404 = 还没出册**，不是"没这份报告"：报告是异步生成的，问早了本来就该是"还没有"。 出册与否直接问存储——键由 report_id 确定性推得，不查任何台账（规则 8.1
+   * 禁第二台状态机）。
+   *
+   * <p>链接自带有效期；业主拿到的是"这一份、这段时间内"的通行证。当前**没有认人这一步** （触发条件写死＝开始接外部真实用户时），所以口径如实是"拿到链接的人就能打开，且会过期"。
+   */
+  @GetMapping("/{reportId}/link")
+  public ResponseEntity<ReportBookLinkResponse> link(@PathVariable String reportId) {
+    return reportBookLinkAppService
+        .issueLink(reportId)
+        .map(ReportBookLinkResponse::from)
+        .map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
   @ExceptionHandler(ReleaseNotFoundException.class)

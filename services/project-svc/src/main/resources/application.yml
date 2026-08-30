@@ -35,3 +35,18 @@ ishome:
       # 下游只做"启动 workflow 即返回"，不等成文——超时按启动动作定，不按生成时长定。
       connect-timeout-ms: 2000
       read-timeout-ms: 10000
+
+  oss:
+    # 私有产物存放（用户裁决 2026-08-30 晚）：报告册写在私有桶里，业主靠**签名链接**打开。
+    # 桶级私有 + 链接自带有效期，本项目一个公网端口都不用开（同架构方案"图/视频走 CDN→OSS 直出不过网关"）。
+    # 键由 report_id 确定性推得（contracts registries/object_keys.md），故不需要任何台账。
+    # 凭证不入库：本机 ~/.ishome/oss-local.env，服务器 /opt/ishome/env/oss.env。
+    # **默认全空**：没配时本服务照常起（里程碑与求值线不受影响），取册链接时响亮失败。
+    endpoint: ${ISHOME_OSS_ENDPOINT:}
+    bucket-private: ${ISHOME_OSS_BUCKET_PRIVATE:}
+    access-key-id: ${ISHOME_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ISHOME_OSS_ACCESS_KEY_SECRET:}
+    # 链接有效期：系统策略不是每人一议。七天＝业主在 IM 里收到链接、隔几天再点开是常事，
+    # 而现在还没有"认人"（触发条件写死＝开始接外部真实用户时），没法在他点开那一刻现签一条新的。
+    # **认人上线后改短、每次现签**——那时"只有他能打开"才真正成立。
+    book-link-validity: ${ISHOME_OSS_BOOK_LINK_VALIDITY:P7D}
