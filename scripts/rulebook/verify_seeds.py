@@ -43,7 +43,11 @@ ITEM_NAME = re.compile(r"^[a-z][a-z0-9-]*$")
 COMPARISON_NAME = re.compile(r"^([a-z]+)-vs-([a-z]+)$")
 # 元信息键：与项同层就意味着 {lkp-x.unit}（引用出一个单位字符串）是语法上合法的写法，
 # 靠"别那么写"约束不住——故一律不进 value，各归各的字段（规则 1.9 二）。
-VALUE_META_KEYS = {"unit", "plane", "reference_plane", "tolerance"}
+VALUE_META_KEYS = {"unit", "plane", "reference_plane"}
+# 自造精度声明：一律禁止（规则 4.10e，用户裁决 2026-08-30）。真样本＝lkp-storage-closed-ratio
+# 的 tolerance: 0.1——自种子首版就在，而 source 只给了 0.8（"二八原则"），±0.1 没有源。
+# 它禁的不是"表达不确定"，是**用一个自己编的数字表达它**：不确定性由标注承担（规则 4.10c）。
+PRECISION_CLAIM_KEYS = {"tolerance", "approx", "margin", "error"}
 # 户型特征标记闭集（规则 6.3 触发字段）的唯一真源在 contracts，本脚本**读它不复制它**：
 # 复制一份就是"注册表与规则数据两套写法"，改一侧不改另一侧即静默失效（同锁定文案注册表纪律三）。
 # 检出路径同 shared/contracts 模块的约定：默认同级检出 ../ishome-contracts，CI 用 contracts-checkout；
@@ -126,6 +130,14 @@ def check_value_shape(merged, ctx):
     value_kind 的闭集/受控词表内（不在即拒灌——规则 1.9 三最后一条原文点名的执行位）；
     ③元信息不得与项同层。规则写了没人执行，与既有的"取值不校验"是同一个坑。
     """
+    claimed = sorted(k for k in PRECISION_CLAIM_KEYS if k in merged)
+    if claimed:
+        errors.append(
+            f"{ctx}: 带自造精度声明 {claimed}（规则 4.10e）——不确定性由标注承担"
+            f"（规则 4.10c：经验条目照发、随页挂标注、语域限建议口吻），"
+            f"不由一个没有源的数字重复表达。真有区间就用 value_kind=range 给 min/max，"
+            f"但那两个数必须有源，不能折算出来"
+        )
     kind, value = merged.get("value_kind"), merged.get("value")
     if kind is None:
         if value is not None:

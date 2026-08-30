@@ -142,6 +142,17 @@ case("元信息各归各字段即放行",
      item(value_kind="scenario", value="{general: 100}", reference_plane='"0.75m 水平面"'),
      "不得进 value", expect_error=False)
 
+# ⑫ 自造精度声明一律禁止（规则 4.10e，用户裁决 2026-08-30）
+case("点值带 tolerance 即拒",
+     item(value_kind="single", value="0.8", tolerance="0.1", dimensionless="true"),
+     "带自造精度声明", expect_error=True)
+case("approx 同禁（换个词面不换性质）",
+     item(value_kind="single", value="0.8", approx="0.1", dimensionless="true"),
+     "带自造精度声明", expect_error=True)
+case("有源的真区间照常放行——禁的是自造精度声明，不是禁表达区间",
+     item(value_kind="range", value="{min: 0.7, max: 0.9}", dimensionless="true"),
+     "带自造精度声明", expect_error=False)
+
 print()
 if failures:
     for f in failures:
