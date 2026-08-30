@@ -10,6 +10,7 @@ import com.ishome.project.domain.rulebook.RulebookEvaluator;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 /**
@@ -44,6 +45,29 @@ public class ReportEvaluationAppService {
       EvaluationInput input,
       ArtifactEntitlement entitlement,
       LocalDate evaluatedOn) {
+    return evaluate(domains, input, entitlement, evaluatedOn, Map.of());
+  }
+
+  /** 线上调用口 · 带必挂集：基准日同样取当天，"今天是哪天"只在本类里说一次。 */
+  public ReportDataPackage evaluate(
+      List<String> domains,
+      EvaluationInput input,
+      ArtifactEntitlement entitlement,
+      Map<String, List<String>> lockedTextsByArtifact) {
+    return evaluate(
+        domains, input, entitlement, LocalDate.now(ZoneOffset.UTC), lockedTextsByArtifact);
+  }
+
+  /**
+   * 带必挂锁定文案的求值口：{@code lockedTextsByArtifact} 是调用方按 art- 传入的那半必挂集， 与求值线派生的那半在 {@code
+   * RulebookEvaluator} 内求并集（裁决⑯：必挂集以数据包清单为唯一口径）。
+   */
+  public ReportDataPackage evaluate(
+      List<String> domains,
+      EvaluationInput input,
+      ArtifactEntitlement entitlement,
+      LocalDate evaluatedOn,
+      Map<String, List<String>> lockedTextsByArtifact) {
     List<ReleaseSnapshot> snapshots =
         domains.stream()
             .map(
@@ -52,6 +76,6 @@ public class ReportEvaluationAppService {
                         .findLatest(domain)
                         .orElseThrow(() -> new ReleaseNotFoundException(domain)))
             .toList();
-    return evaluator.evaluate(snapshots, input, entitlement, evaluatedOn);
+    return evaluator.evaluate(snapshots, input, entitlement, evaluatedOn, lockedTextsByArtifact);
   }
 }

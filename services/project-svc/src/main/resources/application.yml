@@ -23,5 +23,15 @@ mybatis-plus:
     rulebookSchema: svc_rulebook
 
 server:
-  # 本地端口约定：channel 8102，project 8103
+  # 本地端口约定：channel 8102，project 8103，genpipe 入站面 8104
   port: 8103
+
+ishome:
+  project:
+    genpipe:
+      # 成文线派发入口（裁决④：走 HTTP，不用 Java Temporal SDK 直连）。
+      # 默认值 = 本地开发的 genpipe-svc 入站面（uv run genpipe-http，端口 8104）；部署经环境变量覆盖。
+      base-url: ${ISHOME_GENPIPE_BASE_URL:http://127.0.0.1:8104}
+      # 下游只做"启动 workflow 即返回"，不等成文——超时按启动动作定，不按生成时长定。
+      connect-timeout-ms: 2000
+      read-timeout-ms: 10000

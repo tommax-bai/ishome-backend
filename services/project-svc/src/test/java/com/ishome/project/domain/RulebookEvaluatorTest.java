@@ -230,6 +230,47 @@ class RulebookEvaluatorTest {
     assertEquals(Map.of("ergonomics", List.of("GUIDE_SITE_CHECK")), pkg.lockedTextsByDomain());
   }
 
+  /**
+   * 必挂集是**并集**不是覆盖（两条线接通落地）：求值线派生的那半（未过门定位数字 → 现场复核话术）与调用方 按 art-
+   * 传入的那半（产物自己的必挂列，如造价章免责）各自成立、理由不同，任一侧漏挂都是纪律失效。
+   */
+  @Test
+  void unionsCallerSuppliedLockedTextsWithDerivedOnes() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(locatingSnapshot()),
+            INPUT,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON,
+            Map.of(
+                "ergonomics", List.of("DISCLAIM_APPENDIX"), "budget", List.of("DISCLAIM_PRICE")));
+
+    assertEquals(
+        Map.of(
+            "ergonomics",
+            List.of("DISCLAIM_APPENDIX", "GUIDE_SITE_CHECK"),
+            "budget",
+            List.of("DISCLAIM_PRICE")),
+        pkg.lockedTextsByDomain());
+  }
+
+  /** 并集去重且排序：同一条 ID 两侧都要求时只出现一次，域内顺序不随入参迭代序漂移（规则 8.2 字节级可重放）。 */
+  @Test
+  void dedupesAndSortsLockedTextsSoOutputStaysReplayable() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(locatingSnapshot()),
+            INPUT,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON,
+            Map.of(
+                "ergonomics", List.of("GUIDE_SITE_CHECK", "DISCLAIM_RENDER", "DISCLAIM_APPENDIX")));
+
+    assertEquals(
+        List.of("DISCLAIM_APPENDIX", "DISCLAIM_RENDER", "GUIDE_SITE_CHECK"),
+        pkg.lockedTextsByDomain().get("ergonomics"));
+  }
+
   /** 过门的定位数字不触发派生必挂：现场复核话术挂的是"没依据"，不是"是定位数字"。 */
   @Test
   void skipsSiteCheckLockedTextWhenLocatingNumberIsCalibrated() {

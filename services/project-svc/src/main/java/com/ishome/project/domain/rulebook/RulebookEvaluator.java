@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * lkp- 求值（纯函数，无 IO）：同输入同输出（规则 8.2 可重放）。
@@ -70,11 +71,28 @@ public final class RulebookEvaluator {
 
   private final AnchorProvenancePolicy provenancePolicy = new AnchorProvenancePolicy();
 
+  /** 无必挂集的求值口：调用方不产出任何要求锁定文案的 art- 时走这个重载。 */
   public ReportDataPackage evaluate(
       List<ReleaseSnapshot> snapshots,
       EvaluationInput input,
       ArtifactEntitlement entitlement,
       LocalDate evaluatedOn) {
+    return evaluate(snapshots, input, entitlement, evaluatedOn, Map.of());
+  }
+
+  /**
+   * 求值并合成报告数据包。
+   *
+   * <p>{@code lockedTextsByArtifact} = **调用方按 art- 传入的必挂锁定文案 ID 集**（域 → ID 列表，域取去前缀形态）： 与 {@code
+   * entitlement} 同一条理由入参——art- 产物清单连同它的必挂列住在 contracts，本模块禁止复制该表 （规则 4.12），谁调用谁知道自己在生成哪个产物。它与
+   * {@link #derivedLockedTexts} 求**并集**下发（裁决⑯：必挂集以数据包清单为唯一口径）。
+   */
+  public ReportDataPackage evaluate(
+      List<ReleaseSnapshot> snapshots,
+      EvaluationInput input,
+      ArtifactEntitlement entitlement,
+      LocalDate evaluatedOn,
+      Map<String, List<String>> lockedTextsByArtifact) {
     List<ReleaseSnapshot> ordered =
         snapshots.stream().sorted(Comparator.comparing(ReleaseSnapshot::domain)).toList();
     List<ReportAnchor> anchors = new ArrayList<>();
@@ -113,7 +131,7 @@ public final class RulebookEvaluator {
         personas,
         checks,
         bannedTerms,
-        derivedLockedTexts(anchors),
+        mergedLockedTexts(derivedLockedTexts(anchors), lockedTextsByArtifact),
         input);
   }
 
@@ -135,6 +153,27 @@ public final class RulebookEvaluator {
       }
     }
     return lockedTexts;
+  }
+
+  /**
+   * 必挂锁定文案的并集（求值线派生 ∪ 调用方按 art- 传入）。
+   *
+   * <p>并集不是覆盖：两侧各自成立且理由不同——派生那半来自**落点的结构化属性**（未过门定位数字要挂现场复核话术， 规则
+   * 4.10c），传入那半来自**产物本身的必挂列**（如造价章的免责）。任一侧漏挂都是纪律失效，多挂只是页脚多一行 （规则 4.10c "标注必挂"的同一条不对称）。
+   *
+   * <p>域内 ID 去重后排序、域键用 {@link TreeMap}：同输入字节级同输出（规则 8.2），否则并集顺序随入参 map 的迭代序漂移。
+   */
+  private static Map<String, List<String>> mergedLockedTexts(
+      Map<String, List<String>> derived, Map<String, List<String>> byArtifact) {
+    Map<String, List<String>> merged = new TreeMap<>(derived);
+    byArtifact.forEach(
+        (domain, ids) -> {
+          TreeSet<String> union = new TreeSet<>(merged.getOrDefault(domain, List.of()));
+          union.addAll(ids);
+          merged.put(domain, List.copyOf(union));
+        });
+    merged.replaceAll((domain, ids) -> List.copyOf(new TreeSet<>(ids)));
+    return merged;
   }
 
   private static String domainOf(String releaseTag) {
