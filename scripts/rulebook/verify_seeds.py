@@ -6,15 +6,16 @@
 """核验跑批（规范 v2.2 规则 4.10a 四项 + 规则 4.10b 结构检查）——对 rulebook-seeds 全量运行。
 
 硬违规（exit 1）：YAML 解析失败 / 区间 min>max / effective 倒挂 / 单位不在白名单 /
-check 缺 decided_by / max_from 悬空 / consumers 悬空。
+check 缺 decided_by / max_from 悬空 / consumers 悬空 / 户型特征标记越界。
 信息输出：可转 calibrated 的条目清单（source 可定位且无 source_pending）——转档动作由灌库侧执行，
 本脚本只判定资格（规则 4.10a：calibrated 只能由机检核验取得）。
 """
 from __future__ import annotations
-import re, sys, glob, os
+import json, re, sys, glob, os
 import yaml
 
-SEEDS = os.path.join(os.path.dirname(__file__), "..", "..",
+HERE = os.path.dirname(os.path.abspath(__file__))
+SEEDS = os.path.join(HERE, "..", "..",
                      "services/project-svc/src/main/resources/rulebook-seeds")
 ARTS = {f"art-{n}" for n in (
     "floorplan-current floorplan-dimensions daylight-analysis flow-analysis wall-structure "
@@ -28,6 +29,34 @@ UNITS = {"mm","m","K","Ra","°","lx","㎡","投影㎡","延米","延米/㎡","�
 LOCATOR = re.compile(r"GB[/T ]?\s?\d|JGJ\s?\d|https?://|\.com|\.cn|信息价")
 # check 入册状态（规则 4.17 门禁二；V4 迁移的 ck_checks_status 同集合）
 CHECK_STATUS = {"observing", "active", "retired"}
+# 户型特征标记闭集（规则 6.3 触发字段）的唯一真源在 contracts，本脚本**读它不复制它**：
+# 复制一份就是"注册表与规则数据两套写法"，改一侧不改另一侧即静默失效（同锁定文案注册表纪律三）。
+# 检出路径同 shared/contracts 模块的约定：默认同级检出 ../ishome-contracts，CI 用 contracts-checkout；
+# 均可经 ISHOME_CONTRACTS_PATH 覆盖。
+LAYOUT_FEATURES_REL = "rulebook/layout_features.json"
+CONTRACTS_CANDIDATES = [
+    os.environ.get("ISHOME_CONTRACTS_PATH"),
+    os.path.join(HERE, "..", "..", "..", "ishome-contracts"),
+    os.path.join(HERE, "..", "..", "contracts-checkout"),
+]
+
+
+def layout_features() -> set[str]:
+    """户型特征标记闭集。找不到契约检出即**响亮失败**——静默跳过这道校验等于它不存在，
+    而它拦的正是本项目最贵的失效形态：标记名写错 → 规则永远不触发且不报错（契约 §四）。"""
+    for base in CONTRACTS_CANDIDATES:
+        if not base:
+            continue
+        path = os.path.join(base, LAYOUT_FEATURES_REL)
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                return set(json.load(f).get("features", {}))
+    print(f"== 找不到 {LAYOUT_FEATURES_REL}：clone ishome-contracts 到 backend 同级目录，"
+          f"或设 ISHOME_CONTRACTS_PATH=<检出路径>（试过：{[c for c in CONTRACTS_CANDIDATES if c]}）")
+    sys.exit(1)
+
+
+LAYOUT_FEATURES = layout_features()
 
 errors, warns, eligible, conflicts, judges = [], [], [], [], []
 
@@ -107,6 +136,18 @@ for f, d in docs.items():
                 errors.append(f"{ctx}: 判官判据种子不得预置 status={st}（观察态是入册门禁第二道，规则 4.17）")
             if exs: judges.append(f"{ctx} status={st} examples={len(exs)}")
             continue  # check 不进 calibration 状态机
+        if form == "rule":
+            # 户型特征触发的标记名必须 ∈ 闭集（契约 rulebook/layout_features.md §四，两侧校验的核验侧）。
+            # 越界或缺名都拦在入库前：求值线的匹配语义是"键存在即触发"，键名写错既不触发也不报错——
+            # 它会一路发到 release、进每一份包，而症状只是"这条规则好像从来没出现过"。
+            trigger = merged.get("trigger") or {}
+            if trigger.get("type") == "layout_feature":
+                feature = trigger.get("layout_feature")
+                if not feature:
+                    errors.append(f"{ctx}: layout_feature 触发缺标记名（trigger.layout_feature）")
+                elif feature not in LAYOUT_FEATURES:
+                    errors.append(f"{ctx}: 户型特征标记越界 [{feature}]，闭集见 contracts "
+                                  f"{LAYOUT_FEATURES_REL}：{sorted(LAYOUT_FEATURES)}")
         # 知识条目：4.10a 四项
         check_range(merged.get("value"), ctx)
         ef, et = (merged.get("props") or {}).get("effective_from"), (merged.get("props") or {}).get("effective_to")

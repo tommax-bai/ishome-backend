@@ -32,6 +32,7 @@ class GenpipeClientTest {
           Map.of(),
           Map.of(),
           Map.of(),
+          Map.of(),
           Map.of("ergonomics", List.of("GUIDE_SITE_CHECK")),
           new EvaluationInput(1700, 1780, 1600, 600, Map.of(), "一线"));
 

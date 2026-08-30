@@ -45,6 +45,7 @@ class ReportDispatchAppServiceTest {
           List.of(),
           List.of(),
           List.of(),
+          List.of(),
           List.of());
 
   private final RecordingReportComposeGateway gateway = new RecordingReportComposeGateway();

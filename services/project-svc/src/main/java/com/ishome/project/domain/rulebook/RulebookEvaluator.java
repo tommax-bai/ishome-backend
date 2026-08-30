@@ -10,7 +10,8 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * lkp- 求值（纯函数，无 IO）：同输入同输出（规则 8.2 可重放）。
+ * 求值（纯函数，无 IO）：同输入同输出（规则 8.2 可重放）。两件事——**数字**（lkp- 落点）与**关系**（规则触发）， 都在生产侧确定性算完，都不由 LLM 决定（规范
+ * v2.5：关系与数字同族）。
  *
  * <p>三条求值路径：①参数带 value → 直取（formula 仅为推导说明）；②仅带 formula → 按 assetId 显式实现
  * 代入匿名输入——公式的可执行形态在此登记，未登记/输入缺失 → gap-；③无值无公式 → gap-。 结果按 lkpId 排序，数值全为整数毫米/原样单位——不引入浮点位数漂移。
@@ -24,6 +25,9 @@ import java.util.TreeSet;
  *
  * <p>v2.4 裁决 2026-08-29 起**没有第三种去向**：求出来的值一律下发（{@code withheldAnchors} 恒空）。 隐藏这一档整体作废的理由见 {@link
  * AnchorPresentationPolicy} 与规范 §14.9。
+ *
+ * <p>规则的**触发判定**走另一条路（{@link #triggeredRules}）：规则不产出数字，产出"这一章该讲到什么"—— 触发成立的条目按域随包下发，判据是 {@link
+ * RuleTriggerPolicy}。它与落点求值互不相干：落点求不出走 gap-， 规则没触发就是没触发，不是缺口。
  */
 public final class RulebookEvaluator {
 
@@ -71,6 +75,8 @@ public final class RulebookEvaluator {
 
   private final AnchorProvenancePolicy provenancePolicy = new AnchorProvenancePolicy();
 
+  private final RuleTriggerPolicy triggerPolicy = new RuleTriggerPolicy();
+
   /** 无必挂集的求值口：调用方不产出任何要求锁定文案的 art- 时走这个重载。 */
   public ReportDataPackage evaluate(
       List<ReleaseSnapshot> snapshots,
@@ -99,6 +105,7 @@ public final class RulebookEvaluator {
     List<GapRecord> gaps = new ArrayList<>();
     Map<String, List<PersonaAsset>> personas = new TreeMap<>();
     Map<String, List<CheckAsset>> checks = new TreeMap<>();
+    Map<String, List<TriggeredRule>> triggeredRules = new TreeMap<>();
     Map<String, List<String>> bannedTerms = new TreeMap<>();
     for (ReleaseSnapshot snapshot : ordered) {
       personas.put(
@@ -110,6 +117,7 @@ public final class RulebookEvaluator {
           snapshot.domain(),
           snapshot.checks().stream().sorted(Comparator.comparing(CheckAsset::assetId)).toList());
       bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
+      triggeredRules.put(snapshot.domain(), triggeredRules(snapshot, input));
       for (ParameterAsset parameter : snapshot.parameters()) {
         resolve(parameter, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
       }
@@ -130,9 +138,39 @@ public final class RulebookEvaluator {
         List.copyOf(gaps),
         personas,
         checks,
+        triggeredRules,
         bannedTerms,
         mergedLockedTexts(derivedLockedTexts(anchors), lockedTextsByArtifact),
         input);
+  }
+
+  /**
+   * 本域触发成立的规则条目（规范 §4.1 三层三触发；判据见 {@link RuleTriggerPolicy}）。
+   *
+   * <p>域键**恒存在**（哪怕本域一条没触发，值也是空列表）：与 personas/checks 同形态——"这一域评过了、结论是没有"
+   * 与"这一域根本没评"是两件事，缺键会让消费侧把前者读成后者。按 assetId 排序，同输入字节级同输出（规则 8.2）。
+   *
+   * <p>不下发未触发的条目：成文线的输入是"已经成立的规则"，把触发条件一起给过去就等于请它重判一遍 （同"成文线不重判求值线"）。
+   */
+  private List<TriggeredRule> triggeredRules(ReleaseSnapshot snapshot, EvaluationInput input) {
+    List<TriggeredRule> triggered = new ArrayList<>();
+    for (RuleAsset rule : snapshot.rules()) {
+      triggerPolicy
+          .decide(rule, input.layoutFeatures())
+          .ifPresent(
+              evidence ->
+                  triggered.add(
+                      new TriggeredRule(
+                          rule.assetId(),
+                          rule.layer(),
+                          rule.content(),
+                          rule.rationale(),
+                          rule.severity(),
+                          rule.calibration(),
+                          evidence)));
+    }
+    triggered.sort(Comparator.comparing(TriggeredRule::assetId));
+    return List.copyOf(triggered);
   }
 
   /**

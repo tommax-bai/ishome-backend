@@ -10,6 +10,7 @@ import com.ishome.project.domain.rulebook.CheckExample;
 import com.ishome.project.domain.rulebook.ParameterAsset;
 import com.ishome.project.domain.rulebook.PersonaAsset;
 import com.ishome.project.domain.rulebook.ReleaseSnapshot;
+import com.ishome.project.domain.rulebook.RuleAsset;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,8 +20,8 @@ import java.util.TreeSet;
 import org.springframework.stereotype.Repository;
 
 /**
- * svc_rulebook.releases PG 实现：快照 jsonb → 求值线投影（parameters/attributes/personas/checks/禁词，
- * 其余形态随后续扩展）。 解码失败视为发布物损坏直接抛出——release 是不可变契约数据，静默跳条目即静默假成功。
+ * svc_rulebook.releases PG 实现：快照 jsonb → 求值线投影（parameters/attributes/rules/personas/checks/禁词，
+ * templates 随句式拼装落地时扩展）。 解码失败视为发布物损坏直接抛出——release 是不可变契约数据，静默跳条目即静默假成功。
  */
 @Repository
 public class ReleaseRepositoryImpl implements ReleaseRepository {
@@ -47,6 +48,7 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
           po.getReleaseTag(),
           parameters(assets),
           attributes(assets),
+          rules(assets),
           personas(assets),
           checks(assets),
           bannedTerms(assets));
@@ -95,6 +97,29 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("version").asInt(1)));
     }
     return attributes;
+  }
+
+  /**
+   * rule 形态投影（规范 §4.1 三层三触发）：{@code trigger} 原样带走，判定交 {@code RuleTriggerPolicy}。
+   *
+   * <p>不在此处按触发类型过滤：投影层只负责把快照说的话搬全，"哪条对这一户成立"是判据的事—— 在这里筛就等于把触发语义拆成两处，加一个触发类型要改两个文件。{@code trigger}
+   * 缺失 → 空 map（判据据此判为未触发），不猜一个默认类型：猜出来的触发条件会让规则**无条件**进每一份包。
+   */
+  private List<RuleAsset> rules(JsonNode assets) {
+    List<RuleAsset> rules = new ArrayList<>();
+    for (JsonNode node : assets.path("rules")) {
+      rules.add(
+          new RuleAsset(
+              node.path("asset_id").asText(),
+              node.path("layer").asText(null),
+              node.path("content").asText(""),
+              node.path("rationale").asText(null),
+              node.path("severity").asText(null),
+              node.path("calibration").asText("draft"),
+              node.path("trigger").isObject() ? toMap(node.path("trigger")) : Map.of(),
+              toStringList(node.path("consumers"))));
+    }
+    return rules;
   }
 
   /** 快照内日期为 ISO 文本（to_jsonb 的 date 形态）；缺失/空串 → null，不猜。 */

@@ -57,6 +57,7 @@ class ReportsEndpointTest {
           List.of(),
           List.of(),
           List.of(),
+          List.of(),
           List.of());
 
   private static MockMvc mockMvcWith(RecordingReportComposeGateway gateway) {

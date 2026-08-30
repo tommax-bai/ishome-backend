@@ -3,6 +3,7 @@ package com.ishome.project;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,6 +20,7 @@ import com.ishome.project.domain.rulebook.ReleaseNotFoundException;
 import com.ishome.project.domain.rulebook.ReleaseRef;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
+import com.ishome.project.domain.rulebook.TriggeredRule;
 import com.ishome.project.testsupport.PostgresIntegrationTestSupport;
 import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
 import java.time.LocalDate;
@@ -52,17 +54,23 @@ class RulebookEvaluationIntegrationTest {
   @Autowired JdbcTemplate jdbcTemplate;
   @Autowired ObjectMapper objectMapper;
 
-  /** estate 标注户型夹具（规则 6.3 触发字段）+ 匿名身高族；tvScreenHeightMm 缺失 → gap 不阻塞。 */
   /** 求值基准日固定：基准日是入参不是时钟，测试里取当天等于让断言随日历漂移（规则 8.2 可重放）。 */
   private static final LocalDate EVALUATED_ON = LocalDate.of(2026, 8, 29);
 
+  /**
+   * 匿名身高族 + 户型特征标记集；tvScreenHeightMm 缺失 → gap 不阻塞。
+   *
+   * <p>特征**键＝闭集内的标记名**（contracts {@code rulebook/layout_features.json}）、**值＝该标记成立的依据** （人话，进 {@code
+   * triggeredBy.evidence} 逐字留痕）。原夹具写的是 {@code kitchen_shape: "U"} 这类"键=值"形态，
+   * 契约明文禁止——那是同概念两套名加一张会漂移的映射表（规则 1.8 第四条）。
+   */
   private static final EvaluationInput INPUT =
       new EvaluationInput(
           1700,
           1780,
           1600,
           null,
-          Map.of("kitchen_shape", "U", "entrance_shape", "side", "sunken_bathroom", "true"),
+          Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通", "balcony_service", "阳台内有洗衣机设备位"),
           "一线");
 
   @BeforeEach
@@ -86,7 +94,16 @@ class RulebookEvaluationIntegrationTest {
         "ergonomics",
         "ergonomics@v1",
         """
-        {"release_tag":"ergonomics@v1","domain":"ergonomics","assets":{"parameters":[
+        {"release_tag":"ergonomics@v1","domain":"ergonomics","assets":{"rules":[
+          {"asset_id":"rule-practice-ergo-dual-cook-width","domain":"ergonomics","layer":"tier-practice",
+           "trigger":{"type":"layout_feature","layout_feature":"kitchen_u_shape"},
+           "content":"两人同时下厨时，U型两排间距取上限区间","rationale":"一个人弯腰开柜、另一个人能过",
+           "severity":"recommended","calibration":"draft","consumers":["art-ergonomics-chapter"],"version":1},
+          {"asset_id":"rule-personal-ergo-elder-grab-bar","domain":"ergonomics","layer":"tier-personal",
+           "trigger":{"type":"answer","question_id":"Q-FAMILY","answer_match":["elder_living"]},
+           "content":"卫生间马桶侧与淋浴区预埋扶手基层","rationale":"老人起身借力点",
+           "severity":"recommended","calibration":"draft","consumers":["art-hydro-checklist"],"version":1}],
+          "parameters":[
           {"asset_id":"lkp-counter-height","name":"橱柜台面高","number_class":"selection",
            "value":null,"formula":"主厨身高/2 + [50,100]","unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-wardrobe-rod","name":"衣柜挂杆高","number_class":"selection",
@@ -114,7 +131,12 @@ class RulebookEvaluationIntegrationTest {
         "budget",
         "budget@v1",
         """
-        {"release_tag":"budget@v1","domain":"budget","assets":{"parameters":[
+        {"release_tag":"budget@v1","domain":"budget","assets":{"rules":[
+          {"asset_id":"rule-practice-budget-hidden-item-warning","domain":"budget","layer":"tier-practice",
+           "trigger":{"type":"always"},"content":"列常见低报高增项（联动 art-quotation-checklist）",
+           "rationale":"签约时报低、施工中增项是最常见的博弈点","severity":"recommended",
+           "calibration":"draft","consumers":["art-budget-chapter"],"version":1}],
+          "parameters":[
           {"asset_id":"lkp-budget-confidence-width","name":"置信到区间宽度的映射","number_class":"analysis",
            "value":{"high":"±10%","medium":"±20%","low":"±35%"},"formula":null,"unit":null,
            "calibration":"draft","source":"内部规范 §5.9","version":1}],
@@ -302,6 +324,68 @@ class RulebookEvaluationIntegrationTest {
     assertEquals(first, second);
     assertArrayEquals(
         objectMapper.writeValueAsBytes(first), objectMapper.writeValueAsBytes(second));
+  }
+
+  /**
+   * 规则触发在真库快照形态上跑通（规范 §4.1 三层三触发）：{@code always} 无条件进包、 {@code layout_feature} 按标记命中、{@code answer}
+   * 类首版无执行器故不触发。
+   *
+   * <p>依据（{@code triggeredBy.evidence}）逐字等于画像里那条标记的值——报告里"因为你家厨房是 U 形" 的数据来源（规则 4.3
+   * 可追溯性的户型侧对应物）。这是本形态第一次有执行器：此前 {@code layoutFeatures} 契约必填、一处未被消费，四条特征规则从未触发过。
+   */
+  @Test
+  void triggersRulesFromPublishedReleasesByLayoutFeatureAndAlways() {
+    ReportDataPackage pkg =
+        reportEvaluationAppService.evaluate(
+            List.of("lighting", "ergonomics", "budget"),
+            INPUT,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(
+        List.of("rule-practice-ergo-dual-cook-width"),
+        pkg.triggeredRulesByDomain().get("ergonomics").stream()
+            .map(TriggeredRule::assetId)
+            .toList());
+    TriggeredRule dualCook = pkg.triggeredRulesByDomain().get("ergonomics").get(0);
+    assertEquals("layout_feature", dualCook.triggeredBy().type());
+    assertEquals("kitchen_u_shape", dualCook.triggeredBy().feature());
+    assertEquals("厨房三面台面围合，中间通道贯通", dualCook.triggeredBy().evidence());
+    assertEquals("两人同时下厨时，U型两排间距取上限区间", dualCook.content());
+
+    TriggeredRule hiddenItem = pkg.triggeredRulesByDomain().get("budget").get(0);
+    assertEquals("rule-practice-budget-hidden-item-warning", hiddenItem.assetId());
+    assertEquals("always", hiddenItem.triggeredBy().type());
+    assertNull(hiddenItem.triggeredBy().evidence());
+
+    // 域键恒存在：lighting 快照里一条 rule 都没有，给空列表而不是缺键
+    assertEquals(List.of(), pkg.triggeredRulesByDomain().get("lighting"));
+  }
+
+  /**
+   * 触发条目的**线上字面量**（contracts rulebook/report_data_package.schema.json）：成文线的 pydantic 镜像
+   * 按同样的字面量解析，改一个字母两侧就对不上。
+   *
+   * <p>同时钉住"不下发什么"：{@code trigger}（原始触发条件）与 {@code consumers}（art- 消费方）都不出线—— 契约 {@code
+   * additionalProperties:false} 且消费侧 {@code extra="forbid"}，多发一个字段就是整包解析失败。
+   */
+  @Test
+  void serializesTriggeredRulesInContractShape() throws Exception {
+    ReportDataPackage pkg =
+        reportEvaluationAppService.evaluate(
+            List.of("ergonomics"), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
+    JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(pkg));
+
+    JsonNode rule = json.path("triggeredRulesByDomain").path("ergonomics").path(0);
+    assertEquals("rule-practice-ergo-dual-cook-width", rule.path("assetId").asText());
+    assertEquals("tier-practice", rule.path("layer").asText());
+    assertEquals("draft", rule.path("calibration").asText());
+    assertEquals("recommended", rule.path("severity").asText());
+    assertEquals("layout_feature", rule.path("triggeredBy").path("type").asText());
+    assertEquals("kitchen_u_shape", rule.path("triggeredBy").path("feature").asText());
+    assertEquals("厨房三面台面围合，中间通道贯通", rule.path("triggeredBy").path("evidence").asText());
+    assertTrue(rule.path("trigger").isMissingNode());
+    assertTrue(rule.path("consumers").isMissingNode());
   }
 
   /** 未发布的域拒绝求值（规则 4.12：运行时只读 release，无 release 即无可信内容面）。 */

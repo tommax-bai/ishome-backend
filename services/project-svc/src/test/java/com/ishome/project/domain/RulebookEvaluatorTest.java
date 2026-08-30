@@ -2,8 +2,13 @@ package com.ishome.project.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ishome.project.domain.rulebook.AnchorPresentation;
 import com.ishome.project.domain.rulebook.AnchorProvenance;
 import com.ishome.project.domain.rulebook.ArtifactEntitlement;
@@ -17,13 +22,15 @@ import com.ishome.project.domain.rulebook.PersonaAsset;
 import com.ishome.project.domain.rulebook.ReleaseSnapshot;
 import com.ishome.project.domain.rulebook.ReportAnchor;
 import com.ishome.project.domain.rulebook.ReportDataPackage;
+import com.ishome.project.domain.rulebook.RuleAsset;
 import com.ishome.project.domain.rulebook.RulebookEvaluator;
+import com.ishome.project.domain.rulebook.TriggeredRule;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** lkp- 求值纯函数：三条求值路径、降档门禁、可重放与顺序无关性（规则 8.2/4.10、图 v0.2 §0）。 */
+/** 求值纯函数：三条求值路径、降档门禁、规则触发判定、可重放与顺序无关性（规则 8.2/4.10、图 v0.2 §0）。 */
 class RulebookEvaluatorTest {
 
   private final RulebookEvaluator evaluator = new RulebookEvaluator();
@@ -74,6 +81,32 @@ class RulebookEvaluatorTest {
           "observing",
           1);
 
+  /** rule 夹具：{@code trigger} 与真种子逐字同形（快照 jsonb 原样，见 rulebook-seeds 各域 rules.yaml）。 */
+  private static RuleAsset rule(String assetId, String content, Map<String, Object> trigger) {
+    return new RuleAsset(
+        assetId, "tier-practice", content, "为什么这么做", "recommended", "draft", trigger, List.of());
+  }
+
+  /** 户型特征触发（真种子 {@code ergonomics/rules.yaml}）：厨房 U 形时两排间距取上限。 */
+  private static final RuleAsset DUAL_COOK_RULE =
+      rule(
+          "rule-practice-ergo-dual-cook-width",
+          "两人同时下厨时，U型两排间距取上限区间",
+          Map.of("type", "layout_feature", "layout_feature", "kitchen_u_shape"));
+
+  /** 问卷答案触发（真种子）：首版无执行器，一律按未触发处理——扩展事件见 RuleTriggerPolicy 的类注释。 */
+  private static final RuleAsset ELDER_GRAB_BAR_RULE =
+      new RuleAsset(
+          "rule-personal-ergo-elder-grab-bar",
+          "tier-personal",
+          "卫生间马桶侧与淋浴区预埋扶手基层",
+          "老人起身借力点",
+          "recommended",
+          "draft",
+          Map.of(
+              "type", "answer", "question_id", "Q-FAMILY", "answer_match", List.of("elder_living")),
+          List.of("art-hydro-checklist"));
+
   private static final ReleaseSnapshot ERGONOMICS =
       new ReleaseSnapshot(
           "ergonomics",
@@ -86,12 +119,19 @@ class RulebookEvaluatorTest {
               param("lkp-mystery", "无可执行形态", null, "神秘公式", "draft"),
               param("lkp-empty", "空定义", null, null, "draft")),
           List.of(),
+          List.of(ELDER_GRAB_BAR_RULE, DUAL_COOK_RULE),
           List.of(PERSONA),
           List.of(CHECK, JUDGE_CHECK),
           List.of("依据", "综合考量"));
 
+  /**
+   * 匿名画像的户型特征标记集：**键＝闭集内的标记名**（contracts {@code rulebook/layout_features.json}）、
+   * **值＝这条标记成立的依据**（人话）。原夹具写的是 {@code kitchen_shape: "U"}——那是"键=值再投影"的形态， 契约明文禁止（同概念两套名 +
+   * 一张会漂移的映射表，规则 1.8 第四条）。
+   */
   private static final EvaluationInput INPUT =
-      new EvaluationInput(1700, 1780, null, null, Map.of("kitchen_shape", "U"), null);
+      new EvaluationInput(
+          1700, 1780, null, null, Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通"), null);
 
   @Test
   void evaluatesFormulaAndPassThroughAnchors() {
@@ -180,6 +220,7 @@ class RulebookEvaluatorTest {
                 calibration,
                 "行业通行",
                 1)),
+        List.of(),
         List.of(),
         List.of(),
         List.of(),
@@ -313,7 +354,14 @@ class RulebookEvaluatorTest {
 
   private static ReleaseSnapshot budgetSnapshot(AttributeAsset... attributes) {
     return new ReleaseSnapshot(
-        "budget", "budget@v7", List.of(), List.of(attributes), List.of(), List.of(), List.of());
+        "budget",
+        "budget@v7",
+        List.of(),
+        List.of(attributes),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 
   private static EvaluationInput inputWithCityTier(String cityTier) {
@@ -467,6 +515,7 @@ class RulebookEvaluatorTest {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
             List.of());
 
     ReportDataPackage a =
@@ -491,6 +540,158 @@ class RulebookEvaluatorTest {
     assertEquals("你和你太太", pkg.checksByDomain().get("ergonomics").get(0).examples().get(0).bad());
     assertEquals("observing", pkg.checksByDomain().get("ergonomics").get(0).status());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
+  }
+
+  // ── 规则触发判定（规范 §4.1 三层三触发；关系与数字同族，都不由 LLM 决定） ─────────────
+
+  /** 收纳域真种子形态：无条件触发一条、户型特征触发一条、问卷答案触发一条（后者首版无执行器）。 */
+  private static ReleaseSnapshot storageSnapshot() {
+    return new ReleaseSnapshot(
+        "storage",
+        "storage@v7",
+        List.of(),
+        List.of(),
+        List.of(
+            rule("rule-practice-storage-entry-parcel", "玄关设快递拆包位（台面或翻板）", Map.of("type", "always")),
+            rule(
+                "rule-practice-storage-balcony-cleaning",
+                "阳台留清洁工具位（含插座）",
+                Map.of("type", "layout_feature", "layout_feature", "balcony_service")),
+            rule(
+                "rule-personal-storage-bulk-buying",
+                "增设囤货仓（阳台或次卧柜下段，承重层板）",
+                Map.of("type", "answer", "question_id", "Q-STORAGE"))),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static EvaluationInput inputWithFeatures(Map<String, String> layoutFeatures) {
+    return new EvaluationInput(1700, 1780, null, null, layoutFeatures, null);
+  }
+
+  /**
+   * 户型特征命中：**键存在即触发，值不参与匹配**；值进 {@code triggeredBy.evidence} 逐字留痕—— 报告里"因为你家阳台带家政位"的数据来源（规则 4.3
+   * 可追溯性的户型侧对应物）。
+   */
+  @Test
+  void triggersLayoutFeatureRuleOnKeyPresenceAndCarriesTheValueAsEvidence() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageSnapshot()),
+            inputWithFeatures(Map.of("balcony_service", "阳台内有洗衣机设备位")),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    TriggeredRule balcony = triggered(pkg, "storage", "rule-practice-storage-balcony-cleaning");
+    assertEquals("layout_feature", balcony.triggeredBy().type());
+    assertEquals("balcony_service", balcony.triggeredBy().feature());
+    assertEquals("阳台内有洗衣机设备位", balcony.triggeredBy().evidence());
+    assertEquals("阳台留清洁工具位（含插座）", balcony.content());
+    assertEquals("tier-practice", balcony.layer());
+    assertEquals("draft", balcony.calibration());
+  }
+
+  /** 标记不在画像里就是不触发——没有近似匹配、没有映射表（映射表一旦存在就会与数据漂移）。 */
+  @Test
+  void skipsLayoutFeatureRuleWhenTheMarkIsAbsent() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageSnapshot()),
+            inputWithFeatures(Map.of("west_facing", "客厅朝西")),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(
+        List.of("rule-practice-storage-entry-parcel"),
+        pkg.triggeredRulesByDomain().get("storage").stream().map(TriggeredRule::assetId).toList());
+  }
+
+  /**
+   * {@code always} 无条件成立：画像为空也照进包，依据为空——无条件的事没有"因为"，编一个就是伪因果。
+   *
+   * <p>顺带钉住首版射程：{@code answer} 类无执行器，一律按未触发处理（扩展事件见 RuleTriggerPolicy 的类注释）。
+   */
+  @Test
+  void triggersAlwaysRuleWithoutEvidenceAndLeavesUnimplementedTypesUntriggered() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageSnapshot()),
+            inputWithFeatures(Map.of()),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    List<TriggeredRule> storage = pkg.triggeredRulesByDomain().get("storage");
+    assertEquals(List.of("rule-practice-storage-entry-parcel"), assetIds(storage));
+    assertEquals("always", storage.get(0).triggeredBy().type());
+    assertNull(storage.get(0).triggeredBy().feature());
+    assertNull(storage.get(0).triggeredBy().evidence());
+  }
+
+  /** {@code layoutFeatures} 为 null（调用方没传该字段）视同空集：不触发任何特征规则，也不炸。 */
+  @Test
+  void treatsMissingLayoutFeaturesAsEmptySet() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageSnapshot()),
+            inputWithFeatures(null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(
+        List.of("rule-practice-storage-entry-parcel"),
+        assetIds(pkg.triggeredRulesByDomain().get("storage")));
+  }
+
+  /** 域键恒存在、条目按 assetId 排序：一条没触发的域给空列表——"评过了、结论是没有"与"根本没评"是两件事， 缺键会让消费侧把前者读成后者。排序即可重放（规则 8.2）。 */
+  @Test
+  void keysEveryEvaluatedDomainAndSortsTriggeredRules() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(ERGONOMICS, storageSnapshot(), budgetSnapshot()),
+            inputWithFeatures(Map.of("kitchen_u_shape", "厨房三面台面围合", "balcony_service", "阳台带洗衣位")),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertEquals(
+        List.of("rule-practice-ergo-dual-cook-width"),
+        assetIds(pkg.triggeredRulesByDomain().get("ergonomics")));
+    assertEquals(
+        List.of("rule-practice-storage-balcony-cleaning", "rule-practice-storage-entry-parcel"),
+        assetIds(pkg.triggeredRulesByDomain().get("storage")));
+    // budget 快照里一条 rule 都没有：给空列表而不是缺键
+    assertTrue(pkg.triggeredRulesByDomain().containsKey("budget"));
+    assertEquals(List.of(), pkg.triggeredRulesByDomain().get("budget"));
+  }
+
+  /** 触发的条目**不带触发条件也不带 consumers**：前者给了成文线就会想重判一次，后者成文线不认识 art-。 */
+  @Test
+  void carriesTriggeredRulesIntoPackageWithoutTriggerConditionOrConsumers() throws Exception {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageSnapshot()),
+            inputWithFeatures(Map.of("balcony_service", "阳台内有洗衣机设备位")),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+    ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
+    JsonNode json = mapper.readTree(mapper.writeValueAsBytes(pkg)).path("triggeredRulesByDomain");
+
+    JsonNode balcony = json.path("storage").path(0);
+    assertEquals("rule-practice-storage-balcony-cleaning", balcony.path("assetId").asText());
+    assertTrue(balcony.path("trigger").isMissingNode());
+    assertTrue(balcony.path("consumers").isMissingNode());
+    assertEquals("阳台内有洗衣机设备位", balcony.path("triggeredBy").path("evidence").asText());
+  }
+
+  private static List<String> assetIds(List<TriggeredRule> rules) {
+    return rules.stream().map(TriggeredRule::assetId).toList();
+  }
+
+  private static TriggeredRule triggered(ReportDataPackage pkg, String domain, String assetId) {
+    return pkg.triggeredRulesByDomain().get(domain).stream()
+        .filter(x -> x.assetId().equals(assetId))
+        .findFirst()
+        .orElseThrow();
   }
 
   private static ReportAnchor anchor(ReportDataPackage pkg, String lkpId) {
