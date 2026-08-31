@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 class ReportDispatchAppServiceTest {
 
   private static final EvaluationInput INPUT =
-      new EvaluationInput(1700, 1780, 1600, 600, Map.of(), "一线");
+      new EvaluationInput(1700, 1780, 1600, 600, Map.of(), "一线", null, null);
 
   private static final ReleaseSnapshot ERGONOMICS =
       new ReleaseSnapshot(

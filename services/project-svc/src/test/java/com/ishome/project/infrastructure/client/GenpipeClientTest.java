@@ -35,7 +35,7 @@ class GenpipeClientTest {
           Map.of(),
           Map.of(),
           Map.of("ergonomics", List.of("GUIDE_SITE_CHECK")),
-          new EvaluationInput(1700, 1780, 1600, 600, Map.of(), "一线"));
+          new EvaluationInput(1700, 1780, 1600, 600, Map.of(), "一线", null, null));
 
   private static GenpipeClient clientFor(StubGenpipeServer server) {
     return new GenpipeClient(RestClient.builder(), server.baseUrl(), 2000, 5000);

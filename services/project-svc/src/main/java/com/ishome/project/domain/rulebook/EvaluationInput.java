@@ -23,4 +23,30 @@ public record EvaluationInput(
     Integer eyeHeightMm,
     Integer tvScreenHeightMm,
     Map<String, String> layoutFeatures,
-    String cityTier) {}
+    String cityTier,
+    Double buildingAreaSqm,
+    Integer floorAreaRatioPercent) {
+
+  /**
+   * 套内面积（㎡）= 建筑面积 × 得房率。缺任一项返回 {@code null}——**不猜**，由调用方记 gap-。
+   *
+   * <p>这两个字段 2026-08-31 加入，理由与 {@code cityTier} 同族：**它们是房屋属性不是身份**，
+   * 且都是业主自己就知道的事实（购房合同上就有），会话侧本来就在收（{@code floorplan/building_area_sqm}、
+   * {@code floorplan/floor_area_ratio}，得房率按百分数的数字收，如 81）。
+   *
+   * <p>为什么值得单独加这两个字段：**报告里一切"量"的地基**。真跑实测（2026-08-31）造价章有五条
+   * calibrated 单价却算不出任何总价，收纳章说不出全屋要多少米收纳——缺的从来不是单价，是量。
+   * 而量的最短来源就是这两个数：套内面积一有，`收纳总长 = 套内面积 × 收纳密度基准` 当场就算得出来，
+   * 不必等定稿平面。
+   *
+   * <p>问业主要这两个数**不违反"不许把设计判断推给业主"**（用户裁决 2026-08-31：「客户怎么知道地毯
+   * 应该用多长的呢？这应该是我们告诉他的」）——分界是：**他知道的事实该问**（面积、几口人），
+   * **他不知道的设计判断不许问**（地毯多大、要多少延米收纳）。
+   */
+  public Double netAreaSqm() {
+    if (buildingAreaSqm == null || floorAreaRatioPercent == null) {
+      return null;
+    }
+    return buildingAreaSqm * floorAreaRatioPercent / 100.0;
+  }
+}

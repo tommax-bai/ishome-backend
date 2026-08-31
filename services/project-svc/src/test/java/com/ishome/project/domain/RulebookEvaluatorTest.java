@@ -2,6 +2,7 @@ package com.ishome.project.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,7 +143,14 @@ class RulebookEvaluatorTest {
    */
   private static final EvaluationInput INPUT =
       new EvaluationInput(
-          1700, 1780, null, null, Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通"), null);
+          1700,
+          1780,
+          null,
+          null,
+          Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通"),
+          null,
+          null,
+          null);
 
   @Test
   void evaluatesFormulaAndPassThroughAnchors() {
@@ -234,6 +242,108 @@ class RulebookEvaluatorTest {
                 "mm",
                 calibration,
                 "行业通行",
+                1)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        Map.of());
+  }
+
+  /**
+   * 全屋收纳总长 = 套内面积 × 收纳密度基准——**报告里第一条真的"量"**（2026-08-31）。
+   *
+   * <p>立案：真跑实测造价章有五条 calibrated 单价却算不出任何总价，收纳章说不出全屋要多少米收纳
+   * ——缺的从来不是单价，是量。而这一条的量，靠业主自己知道的两个数就够了，不必等定稿平面。
+   *
+   * <p>密度基准取**同一份快照内**的 {@code lkp-storage-density-baseline}：不跨域取值，否则就在求值线
+   * 内部造出章与章的依赖。
+   */
+  @Test
+  void computesStorageTotalMetersFromNetAreaAndDensity() {
+    EvaluationInput withArea =
+        new EvaluationInput(1700, 1780, null, null, Map.of(), null, 110.0, 80);
+
+    ReportDataPackage pkg =
+        evaluator.evaluate(List.of(storageQuantitySnapshot()), withArea, ArtifactEntitlement.PAID, EVALUATED_ON);
+
+    // 套内 = 110 × 80% = 88 ㎡；88 × [0.25, 0.35] = [22.0, 30.8]
+    ReportAnchor total = anchor(pkg, "lkp-storage-total-meters");
+    assertEquals(Map.of("min", 22.0, "max", 30.8), total.value());
+    assertEquals("米", total.unit());
+  }
+
+  /**
+   * 公式算出来的数**必须带上它自己的推导**——不带，写作步就会编一个。
+   *
+   * <p>立案（2026-08-31 真跑）：收纳总长第一次算出来并写进正文（22.0–30.8 米），紧跟着一句编的
+   * 解释「这个范围锚定的是当前囤货节奏与墙面可嵌入家具形态的交集」。查下去，这条落点 source 是
+   * null。**数字是真的、解释是假的，比两个都假更危险**：读者会因为数字可信而连解释一起信。
+   */
+  @Test
+  void computedAnchorCarriesItsOwnDerivation() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageQuantitySnapshot()),
+            new EvaluationInput(1700, 1780, null, null, Map.of(), null, 110.0, 80),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor total = anchor(pkg, "lkp-storage-total-meters");
+    assertNotNull(total.source(), "算出来的数没有说明它是怎么来的——写作步只能编");
+    assertTrue(total.source().contains("套内面积"), "推导要说清用了哪个输入");
+    assertTrue(total.source().contains("收纳密度基准"), "推导要说清乘了哪条系数");
+  }
+
+  /** 缺面积就**如实记 gap-**，不猜——而且 reason 要是 missing_input（公式有实现、是输入没给）。 */
+  @Test
+  void storageTotalMetersWithoutAreaIsAnHonestGap() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(storageQuantitySnapshot()),
+            new EvaluationInput(1700, 1780, null, null, Map.of(), null, null, null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    GapRecord gap =
+        pkg.gaps().stream()
+            .filter(g -> "lkp-storage-total-meters".equals(g.lkpId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("missing_input", gap.reason());
+    assertEquals("storage@v1", gap.basisTag());
+  }
+
+  /** 量的夹具：密度基准有值、总长只有公式——两条合起来才算得出这一户的收纳总长。 */
+  private static ReleaseSnapshot storageQuantitySnapshot() {
+    return new ReleaseSnapshot(
+        "storage",
+        "storage@v1",
+        List.of(
+            new ParameterAsset(
+                "lkp-storage-density-baseline",
+                "收纳长度密度基准",
+                "analysis",
+                "range",
+                Map.of("min", 0.25, "max", 0.35),
+                null,
+                null,
+                "米/㎡",
+                "draft",
+                "内部经验",
+                1),
+            new ParameterAsset(
+                "lkp-storage-total-meters",
+                "全屋收纳总长",
+                "analysis",
+                "range",
+                null,
+                null,
+                "套内面积 × 收纳密度基准",
+                "米",
+                "draft",
+                "内部经验",
                 1)),
         List.of(),
         List.of(),
@@ -543,7 +653,7 @@ class RulebookEvaluatorTest {
   }
 
   private static EvaluationInput inputWithCityTier(String cityTier) {
-    return new EvaluationInput(1700, 1780, null, null, Map.of(), cityTier);
+    return new EvaluationInput(1700, 1780, null, null, Map.of(), cityTier, null, null);
   }
 
   /**
@@ -752,7 +862,7 @@ class RulebookEvaluatorTest {
   }
 
   private static EvaluationInput inputWithFeatures(Map<String, String> layoutFeatures) {
-    return new EvaluationInput(1700, 1780, null, null, layoutFeatures, null);
+    return new EvaluationInput(1700, 1780, null, null, layoutFeatures, null, null, null);
   }
 
   /**

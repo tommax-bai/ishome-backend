@@ -17,7 +17,12 @@ items:
   - {id: lkp-storage-density-baseline, name: 收纳密度基准, number_class: analysis, value_kind: range, value: {min: 0.25, max: 0.35}, unit: "米/㎡",
      source: "内部规范 §5.7（基准值明确标注待校准）",
      source_pending: "★ 无外部真源。转正路径只能是埋点信号（用户实际反馈够不够）——规则 4.10a"}
-  - {id: lkp-storage-total-meters, name: 全屋收纳沿墙总长, number_class: analysis, value_kind: single, formula: "Σ 各柜体投影沿墙长度（从定稿平面 gen-evaluated 求得）", unit: 米}
+  # value_kind 由 single 改 range（2026-08-31）：这一条现在**求得出来了**——求值线实现了
+  # `套内面积 × 收纳密度基准`，而密度基准本身是区间（0.25–0.35 米/㎡），乘出来自然是区间。
+  # 与原公式「Σ 各柜体投影沿墙长度」是**同一个概念的两条精度**不是两套名（规则 1.8 第四条）：
+  # 现在这条按面积推算，来源＝经验默认值、区间宽；定稿平面接通后按柜体实算，区间收窄。
+  # ★ 执行者提议，非用户裁决：用粗公式先出这个数、而不是继续记 gap-。
+  - {id: lkp-storage-total-meters, name: 全屋收纳沿墙总长, number_class: analysis, value_kind: range, formula: "套内面积 × 收纳密度基准（粗算，来源=经验默认值）；定稿平面接通后改按 Σ 各柜体投影沿墙长度实算", unit: 米}
   # 原有 tolerance: 0.1 已删（用户裁决 2026-08-30，规则 4.10e）。查证：它自种子首版（b036bd4，
   # 系统批量编译那一轮）就在，而 source 只写"行业通行（二八原则）"——二八原则给的是 0.8、没给 ±0.1，
   # 同条自己还写着"无外部标准，属经验条目"。即**它是编译时自造的精度声明，没有源**。

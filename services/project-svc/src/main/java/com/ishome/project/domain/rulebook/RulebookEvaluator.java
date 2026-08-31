@@ -143,7 +143,7 @@ public final class RulebookEvaluator {
       bannedTermGroups.put(snapshot.domain(), snapshot.bannedTermGroups());
       triggeredRules.put(snapshot.domain(), triggeredRules(snapshot, input));
       for (ParameterAsset parameter : snapshot.parameters()) {
-        resolve(parameter, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
+        resolve(parameter, snapshot, input, evaluatedOn, anchors, gaps);
       }
       for (AttributeAsset attribute : snapshot.attributes()) {
         projectWorkItemPrice(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
@@ -335,11 +335,12 @@ public final class RulebookEvaluator {
 
   private void resolve(
       ParameterAsset parameter,
-      String releaseTag,
+      ReleaseSnapshot snapshot,
       EvaluationInput input,
       LocalDate evaluatedOn,
       List<ReportAnchor> anchors,
       List<GapRecord> gaps) {
+    String releaseTag = snapshot.releaseTag();
     if (hasValue(parameter.value())) {
       anchors.add(anchor(parameter, releaseTag, parameter.value(), evaluatedOn));
       return;
@@ -366,12 +367,28 @@ public final class RulebookEvaluator {
               input.tvScreenHeightMm() == null
                   ? null
                   : range(input.tvScreenHeightMm() * 3, input.tvScreenHeightMm() * 4);
+          // 全屋收纳总长 = 套内面积 × 收纳密度基准。**报告里第一条真的"量"**（2026-08-31）。
+          //
+          // 立案：真跑实测造价章有五条 calibrated 单价却算不出任何总价，收纳章说不出全屋要多少米
+          // 收纳——缺的从来不是单价，是量。而这一条的量，靠业主自己知道的两个数就够了
+          // （建筑面积 × 得房率 = 套内面积），**不必等定稿平面**。
+          //
+          // 与该资产原本声明的公式「Σ 各柜体投影沿墙长度（从定稿平面求得）」是**同一个概念的两条
+          // 精度**，不是两套名（规则 1.8 第四条禁同概念两套名）：现在这条按面积推算，来源＝经验默认
+          // 值、区间宽；定稿平面接通后按柜体实算，来源＝图纸推算、区间窄。**区间宽度由来源继承**，
+          // 于是"这个数什么时候会收窄"有一个真实的答案：布局求解接进来的时候。
+          // ★ 执行者提议，非用户裁决：用粗公式先出这个数、而不是继续记 gap-。
+          case "lkp-storage-total-meters" -> storageTotalMeters(snapshot, input);
           default -> null;
         };
     if (computed == null) {
       boolean implemented =
           switch (parameter.assetId()) {
-            case "lkp-counter-height", "lkp-wardrobe-rod", "lkp-mirror-height", "lkp-tv-distance" ->
+            case "lkp-counter-height",
+                    "lkp-wardrobe-rod",
+                    "lkp-mirror-height",
+                    "lkp-tv-distance",
+                    "lkp-storage-total-meters" ->
                 true;
             default -> false;
           };
@@ -383,7 +400,28 @@ public final class RulebookEvaluator {
               parameter.formula()));
       return;
     }
-    anchors.add(anchor(parameter, releaseTag, computed, evaluatedOn));
+    anchors.add(
+        anchor(parameter, releaseTag, computed, evaluatedOn, derivationOf(parameter, input)));
+  }
+
+  /**
+   * 这个数是怎么算出来的——**如实写，写不出就返回资产原本的 source，绝不编**。
+   *
+   * <p>射程只覆盖求值线自己实现了公式的那几条：它们的推导在代码里，代码知道就该说出来。
+   */
+  private static String derivationOf(ParameterAsset parameter, EvaluationInput input) {
+    return switch (parameter.assetId()) {
+      case "lkp-storage-total-meters" ->
+          "求值线按公式算出：套内面积 "
+              + input.netAreaSqm()
+              + " ㎡（建筑面积 "
+              + input.buildingAreaSqm()
+              + " ㎡ × 得房率 "
+              + input.floorAreaRatioPercent()
+              + "%）× 收纳密度基准（米/㎡）。密度基准是经验条目、无外部源，故本条区间偏宽；"
+              + "定稿平面接通后改按各柜体投影沿墙长度实算，区间随之收窄。";
+      default -> parameter.source();
+    };
   }
 
   /**
@@ -394,6 +432,25 @@ public final class RulebookEvaluator {
    */
   private ReportAnchor anchor(
       ParameterAsset parameter, String releaseTag, Object value, LocalDate evaluatedOn) {
+    return anchor(parameter, releaseTag, value, evaluatedOn, parameter.source());
+  }
+
+  /**
+   * 落点组装，{@code source} 可由调用方覆写——**公式求出来的数要说清它是怎么来的**。
+   *
+   * <p>立案（2026-08-31 真跑）：收纳总长第一次算出来（88㎡ × 0.25–0.35 = 22.0–30.8 米）并写进了
+   * 正文，但同一句话里跟着一句**编的**解释——「这个范围锚定的是当前囤货节奏与墙面可嵌入家具形态
+   * 的交集」。查下去，这条算出来的落点 {@code source} 是 null：**我们没告诉写作步这个数怎么来的，
+   * 它就自己编了一个**。数字是真的、解释是假的，比两个都假更危险。
+   *
+   * <p>所以公式求值这一支必须把推导原样带上（哪个输入、乘了哪条系数），标注层与写作步共用它。
+   */
+  private ReportAnchor anchor(
+      ParameterAsset parameter,
+      String releaseTag,
+      Object value,
+      LocalDate evaluatedOn,
+      String source) {
     return new ReportAnchor(
         parameter.assetId(),
         parameter.name(),
@@ -403,11 +460,10 @@ public final class RulebookEvaluator {
         value,
         parameter.referencePlane(),
         releaseTag,
-        parameter.source(),
+        source,
         parameter.calibration(),
         isDegraded(parameter.calibration()),
-        provenancePolicy.decide(
-            parameter.source(), null, null, parameter.calibration(), evaluatedOn),
+        provenancePolicy.decide(source, null, null, parameter.calibration(), evaluatedOn),
         presentationPolicy.decide(parameter.calibration()));
   }
 
@@ -439,6 +495,48 @@ public final class RulebookEvaluator {
       return false;
     }
     return !(value instanceof Map<?, ?> map) || !map.isEmpty();
+  }
+
+  /**
+   * 全屋收纳总长（米）= 套内面积（㎡）× 收纳密度基准（米/㎡）。
+   *
+   * <p>密度基准取**同一份 release 快照内**的 {@code lkp-storage-density-baseline}——同域同版，
+   * 不跨域取值（跨域取即在求值线内部造出章与章的依赖，正是编排侧刻意避开的耦合）。
+   *
+   * <p>任一输入缺席返回 {@code null}：**拿不到就说没有，不填猜的值**，由调用方记 {@code missing_input}。
+   */
+  private static Map<String, Object> storageTotalMeters(
+      ReleaseSnapshot snapshot, EvaluationInput input) {
+    Double netArea = input.netAreaSqm();
+    if (netArea == null) {
+      return null;
+    }
+    Map<String, Object> density =
+        snapshot.parameters().stream()
+            .filter(p -> "lkp-storage-density-baseline".equals(p.assetId()))
+            .map(ParameterAsset::value)
+            .filter(v -> v instanceof Map<?, ?>)
+            .map(v -> {
+              @SuppressWarnings("unchecked")
+              Map<String, Object> m = (Map<String, Object>) v;
+              return m;
+            })
+            .findFirst()
+            .orElse(null);
+    if (density == null
+        || !(density.get("min") instanceof Number min)
+        || !(density.get("max") instanceof Number max)) {
+      return null;
+    }
+    Map<String, Object> value = new LinkedHashMap<>();
+    value.put("min", round1(netArea * min.doubleValue()));
+    value.put("max", round1(netArea * max.doubleValue()));
+    return value;
+  }
+
+  /** 一位小数：收纳长度按米给，再多的位数是求值线自造精度（规则 4.10e 禁）。 */
+  private static double round1(double v) {
+    return Math.round(v * 10.0) / 10.0;
   }
 
   private static Map<String, Object> range(int min, int max) {

@@ -71,7 +71,9 @@ class RulebookEvaluationIntegrationTest {
           1600,
           null,
           Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通", "balcony_service", "阳台内有洗衣机设备位"),
-          "一线");
+          "一线",
+          null,
+          null);
 
   @BeforeEach
   void seedReleases() {
