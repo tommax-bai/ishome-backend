@@ -13,6 +13,9 @@ import java.util.Map;
  * 它是"这一章该讲到什么"的输入，喂叙事推导步定主张；条目正文是内部陈述句，**禁止逐字进写作 prompt 当句子抄** （坑单 prompt 铁律一）。触发类型首版只有 {@code
  * always} 与 {@code layout_feature}，其余三类的执行器与扩展 事件写在 {@link RuleTriggerPolicy}。
  *
+ * <p>{@code bannedTermGroupsByDomain} = 禁词按**为什么禁**分组（域 → 组名 → 词面）， {@code bannedTermsByDomain}
+ * 的平表是它的并集。平表**不删**：扫描与守卫要平表，分组只供 打回话与 prompt 分句用。组名未知时消费侧退回通用打回话，故加组不破消费。
+ *
  * <p>{@code entitlement} = 本包服务的产物权益档（调用方传入，见 {@link ArtifactEntitlement}）：产物权益的唯一口径，
  * 也是成文线复核门禁时的上下文。它是**产物属性不是用户属性**，不破匿名纪律。
  *
@@ -36,5 +39,6 @@ public record ReportDataPackage(
     Map<String, List<CheckAsset>> checksByDomain,
     Map<String, List<TriggeredRule>> triggeredRulesByDomain,
     Map<String, List<String>> bannedTermsByDomain,
+    Map<String, Map<String, List<String>>> bannedTermGroupsByDomain,
     Map<String, List<String>> lockedTextsByDomain,
     EvaluationInput anonymousProfile) {}

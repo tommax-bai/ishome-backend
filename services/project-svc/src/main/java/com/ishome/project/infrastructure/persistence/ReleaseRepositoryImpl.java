@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import org.springframework.stereotype.Repository;
 
@@ -51,7 +52,8 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
           rules(assets),
           personas(assets),
           checks(assets),
-          bannedTerms(assets));
+          bannedTerms(assets),
+          bannedTermGroups(assets));
     } catch (Exception e) {
       throw new IllegalStateException("release 快照解码失败：" + po.getReleaseTag(), e);
     }
@@ -197,6 +199,35 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
       }
     }
     return List.copyOf(examples);
+  }
+
+  /**
+   * vocabulary(kind=banned_term) 的 terms（类别 → 词列表）**保留类别**——分组本来就写在种子里，
+   * 此前在这一层被拍平丢掉，成文线只能对全部禁词说同一句"换人话说"。
+   *
+   * <p>同名类别跨 vocabulary 资产合并；词面在类别内去重排序，类别按名排序（规则 8.2 同输入同输出）。
+   */
+  private Map<String, List<String>> bannedTermGroups(JsonNode assets) {
+    Map<String, TreeSet<String>> groups = new TreeMap<>();
+    for (JsonNode node : assets.path("vocabularies")) {
+      if (!"banned_term".equals(node.path("kind").asText())) {
+        continue;
+      }
+      node.path("terms")
+          .properties()
+          .forEach(
+              entry ->
+                  entry
+                      .getValue()
+                      .forEach(
+                          term ->
+                              groups
+                                  .computeIfAbsent(entry.getKey(), k -> new TreeSet<>())
+                                  .add(term.asText())));
+    }
+    Map<String, List<String>> result = new TreeMap<>();
+    groups.forEach((group, terms) -> result.put(group, List.copyOf(terms)));
+    return Map.copyOf(result);
   }
 
   /** vocabulary(kind=banned_term) 的 terms（类别 → 词列表）平铺去重排序——公共禁词已在发布时物化进本域快照。 */

@@ -215,20 +215,32 @@ def check_value_shape(merged, ctx):
 
 
 def banned_terms_of(domain_dir: str, docs: dict) -> set[str]:
-    """该域禁词 = 跨域表 + persona 的 domain_extra（与 reportgen collect_banned_terms 同口径）。"""
+    """该域禁词 = 跨域表 + persona 域内禁词（与 reportgen collect_banned_terms 同口径）。
+
+    两处口径订正（2026-08-30）：
+    - 跨域表按 `weak`/`methodology`/… 逐类列在**顶层**，没有 `items` 键——原先读 `items`
+      恒取到空，**那 21 个公共禁词从没进过核验集**；
+    - persona 侧原先只读 `domain_extra` 一个键，而成文线读的是 banned_terms 下**全部列表值**
+      （键即组名）。灯光域把键改成 `jargon` 之后，只读一个键就会漏掉它那四个词。
+    两处都会让"单位撞禁词"那道守卫漏拦——它按本域禁词集判。
+    """
     terms: set[str] = set()
-    common = docs.get(os.path.join(SEEDS, "_common", "banned-terms.yaml")) or {}
     def walk(x):
         if isinstance(x, str): terms.add(x)
         elif isinstance(x, list):
             for i in x: walk(i)
         elif isinstance(x, dict):
             for v in x.values(): walk(v)
-    walk(common.get("items", []))
+    common = docs.get(os.path.join(SEEDS, "_common", "banned-terms.yaml")) or {}
+    for key, value in common.items():
+        if key not in ("scope", "form"):
+            walk(value)
     persona = docs.get(os.path.join(SEEDS, domain_dir, "persona.yaml")) or {}
     for it in persona.get("items", [persona]):
         bt = (it or {}).get("banned_terms") or {}
-        walk(bt.get("domain_extra", []))
+        for key, value in bt.items():
+            if key != "inherit":  # inherit 是文件路径不是词面
+                walk(value)
     return {t for t in terms if isinstance(t, str) and t.strip()}
 
 

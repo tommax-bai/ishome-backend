@@ -132,7 +132,8 @@ class RulebookEvaluatorTest {
           List.of(ELDER_GRAB_BAR_RULE, DUAL_COOK_RULE),
           List.of(PERSONA),
           List.of(CHECK, JUDGE_CHECK),
-          List.of("依据", "综合考量"));
+          List.of("依据", "综合考量"),
+          Map.of("methodology", List.of("依据", "综合考量")));
 
   /**
    * 匿名画像的户型特征标记集：**键＝闭集内的标记名**（contracts {@code rulebook/layout_features.json}）、
@@ -238,7 +239,8 @@ class RulebookEvaluatorTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of());
+        List.of(),
+        Map.of());
   }
 
   /** 未过门的定位数字在 PAID 侧照常下发（v2.4：原"参考口吻的定位数字不存在"故必隐藏，整条作废）。 风险改由两件事承接：同页依据标注 + 派生必挂的现场复核话术。 */
@@ -386,7 +388,8 @@ class RulebookEvaluatorTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of());
+        List.of(),
+        Map.of());
   }
 
   /**
@@ -475,7 +478,8 @@ class RulebookEvaluatorTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            Map.of());
 
     ReportDataPackage pkg =
         evaluator.evaluate(List.of(legacy), INPUT, ArtifactEntitlement.PAID, EVALUATED_ON);
@@ -534,7 +538,8 @@ class RulebookEvaluatorTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of());
+        List.of(),
+        Map.of());
   }
 
   private static EvaluationInput inputWithCityTier(String cityTier) {
@@ -689,7 +694,8 @@ class RulebookEvaluatorTest {
             List.of(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            Map.of());
 
     ReportDataPackage a =
         evaluator.evaluate(
@@ -713,6 +719,11 @@ class RulebookEvaluatorTest {
     assertEquals("你和你太太", pkg.checksByDomain().get("ergonomics").get(0).examples().get(0).bad());
     assertEquals("observing", pkg.checksByDomain().get("ergonomics").get(0).status());
     assertEquals(List.of("依据", "综合考量"), pkg.bannedTermsByDomain().get("ergonomics"));
+    // 禁词分组随包（2026-08-30）：平表照旧、分组另给一份——打回话要按"为什么禁"分句，
+    // 一句"换人话说"对行话成立、对软话是错的指令（软话不是换个近义词能救的）。
+    assertEquals(
+        Map.of("methodology", List.of("依据", "综合考量")),
+        pkg.bannedTermGroupsByDomain().get("ergonomics"));
   }
 
   // ── 规则触发判定（规范 §4.1 三层三触发；关系与数字同族，都不由 LLM 决定） ─────────────
@@ -736,7 +747,8 @@ class RulebookEvaluatorTest {
                 Map.of("type", "answer", "question_id", "Q-STORAGE"))),
         List.of(),
         List.of(),
-        List.of());
+        List.of(),
+        Map.of());
   }
 
   private static EvaluationInput inputWithFeatures(Map<String, String> layoutFeatures) {

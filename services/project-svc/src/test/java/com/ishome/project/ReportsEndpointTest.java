@@ -20,6 +20,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -67,7 +68,8 @@ class ReportsEndpointTest {
           List.of(),
           List.of(),
           List.of(),
-          List.of());
+          List.of(),
+          Map.of());
 
   /** 桩件册存储：出册了就给一条链接，没出册就是空——不区分"生成失败"与"还没生成"（那是里程碑的账）。 */
   private static ReportBookStore bookStore(boolean rendered) {

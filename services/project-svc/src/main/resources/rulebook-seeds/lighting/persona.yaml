@@ -48,4 +48,6 @@ assertion_budget:
 
 banned_terms:
   inherit: _common/banned-terms.yaml
-  domain_extra: ["照度", "显指", "光通量", "眩光值"]   # 允许出现在选型表，禁止裸用于正文
+  # 组名即"为什么禁"：本组是业主读不懂的工程词，打回话说"换业主读得懂的说法"
+  # （2026-08-30 由 domain_extra 改名；其余域未跑过，先不预分类——同「延米」那条先例）
+  jargon: ["照度", "显指", "光通量", "眩光值"]   # 允许出现在选型表，禁止裸用于正文

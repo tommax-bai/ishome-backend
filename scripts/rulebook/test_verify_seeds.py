@@ -153,6 +153,48 @@ case("有源的真区间照常放行——禁的是自造精度声明，不是�
      item(value_kind="range", value="{min: 0.7, max: 0.9}", dimensionless="true"),
      "带自造精度声明", expect_error=False)
 
+# ⑬ 单位撞禁词的守卫按**本域全部禁词**判（口径订正 2026-08-30）
+def run_with(files: dict[str, str]) -> str:
+    """跑真核验，种子目录里额外写几份文件（公共禁词表 / persona）。"""
+    with tempfile.TemporaryDirectory() as seeds:
+        for rel, body in files.items():
+            path = os.path.join(seeds, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(body)
+        env = {**os.environ, "ISHOME_SEEDS_PATH": seeds}
+        done = subprocess.run([VERIFY], capture_output=True, text=True, env=env)
+        return done.stdout + done.stderr
+
+
+def unit_case(name: str, unit: str, *, common: str, persona_group: str, expect_error: bool):
+    out = run_with({
+        "_common/banned-terms.yaml": f"scope: cross-domain\nform: vocabulary\n{common}\n",
+        "lighting/persona.yaml": (
+            "domain: lighting\nform: persona\nrelease: null\n"
+            "identity: 灯光顾问\njudgment_style: []\nassertion_budget: []\n"
+            f"banned_terms:\n  inherit: _common/banned-terms.yaml\n  {persona_group}\n"),
+        "lighting/parameters.yaml": (
+            "domain: lighting\nform: parameter\nrelease: null\nitems:\n"
+            f"  - id: lkp-probe\n    name: 探针落点\n    number_class: analysis\n"
+            f"    unit: {unit}\n    value_kind: single\n    value: 3\n"),
+    })
+    hit = any(line.startswith("ERROR") and "含本域禁词" in line for line in out.splitlines())
+    if hit != expect_error:
+        failures.append(f"{name}: 期望{'报错' if expect_error else '不报错'}，实际：\n{out}")
+    print(f"  {'ok  ' if hit == expect_error else 'FAIL'} {name}")
+
+
+# 立案：公共表按 weak/methodology 逐类列在**顶层**，原先读 `items` 恒取到空——21 个公共禁词
+# 从没进过核验集，撞了也不报。
+unit_case("单位撞跨域公共禁词要拦", "依据/㎡",
+          common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=True)
+# 立案：persona 侧原先只读 domain_extra 一个键；灯光域改名 jargon 后只读一个键就漏了那四个词。
+unit_case("单位撞域内禁词要拦（组名不是 domain_extra 也要认）", "×环境照度",
+          common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=True)
+unit_case("不撞就放行", "lx",
+          common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=False)
+
 print()
 if failures:
     for f in failures:

@@ -128,6 +128,8 @@ public final class RulebookEvaluator {
     Map<String, List<CheckAsset>> checks = new TreeMap<>();
     Map<String, List<TriggeredRule>> triggeredRules = new TreeMap<>();
     Map<String, List<String>> bannedTerms = new TreeMap<>();
+    // 禁词分组随包下发（2026-08-30）：平表照旧（扫描与守卫要它），分组另给一份供打回话分句用。
+    Map<String, Map<String, List<String>>> bannedTermGroups = new TreeMap<>();
     for (ReleaseSnapshot snapshot : ordered) {
       personas.put(
           snapshot.domain(),
@@ -138,6 +140,7 @@ public final class RulebookEvaluator {
           snapshot.domain(),
           snapshot.checks().stream().sorted(Comparator.comparing(CheckAsset::assetId)).toList());
       bannedTerms.put(snapshot.domain(), snapshot.bannedTerms().stream().sorted().toList());
+      bannedTermGroups.put(snapshot.domain(), snapshot.bannedTermGroups());
       triggeredRules.put(snapshot.domain(), triggeredRules(snapshot, input));
       for (ParameterAsset parameter : snapshot.parameters()) {
         resolve(parameter, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
@@ -161,6 +164,7 @@ public final class RulebookEvaluator {
         checks,
         triggeredRules,
         bannedTerms,
+        bannedTermGroups,
         mergedLockedTexts(derivedLockedTexts(anchors), lockedTextsByArtifact),
         input);
   }
