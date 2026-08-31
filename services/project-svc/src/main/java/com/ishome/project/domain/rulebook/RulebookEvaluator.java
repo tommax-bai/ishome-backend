@@ -267,7 +267,7 @@ public final class RulebookEvaluator {
     String lkpId = anchorIdOf(attribute.assetId());
     Map<String, Object> value = priceRange(attribute.props(), input.cityTier());
     if (value == null) {
-      gaps.add(new GapRecord(lkpId, "empty_definition", "单价资产无 price_range 区间"));
+      gaps.add(new GapRecord(lkpId, releaseTag, "empty_definition", "单价资产无 price_range 区间"));
       return;
     }
     Object unit = attribute.props().get("unit");
@@ -345,7 +345,7 @@ public final class RulebookEvaluator {
       return;
     }
     if (parameter.formula() == null || parameter.formula().isBlank()) {
-      gaps.add(new GapRecord(parameter.assetId(), "empty_definition", "参数无值无公式"));
+      gaps.add(new GapRecord(parameter.assetId(), releaseTag, "empty_definition", "参数无值无公式"));
       return;
     }
     Object computed =
@@ -378,6 +378,7 @@ public final class RulebookEvaluator {
       gaps.add(
           new GapRecord(
               parameter.assetId(),
+              releaseTag,
               implemented ? "missing_input" : "formula_not_implemented",
               parameter.formula()));
       return;
