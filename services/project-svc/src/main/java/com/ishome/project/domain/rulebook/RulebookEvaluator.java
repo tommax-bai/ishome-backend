@@ -147,6 +147,7 @@ public final class RulebookEvaluator {
       }
       for (AttributeAsset attribute : snapshot.attributes()) {
         projectWorkItemPrice(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
+        projectWorkItemCost(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
       }
     }
     anchors.sort(Comparator.comparing(ReportAnchor::lkpId));
@@ -292,6 +293,101 @@ public final class RulebookEvaluator {
                 attribute.calibration(),
                 evaluatedOn),
             presentationPolicy.decide(attribute.calibration())));
+  }
+
+  /**
+   * 单价 × 这一户的量 = **金额**（{@code lkp-cost-*}）。报告里第一笔真的钱。
+   *
+   * <p>立案（2026-08-31）：造价章有五条 calibrated 单价却算不出任何总价——**缺的从来不是单价，
+   * 是量**。而"有单位不等于有量"：五条里三条的 {@code unit} 字面都是「㎡」，但拆除的㎡是被拆
+   * 墙体面积、涂刷的㎡是墙面展开面积、水电人工的㎡是**建筑面积**，是三个完全不同的量。
+   *
+   * <p>所以乘哪个量**由数据说**（单价资产的 {@code props.quantity_basis}，取值是匿名画像里那个量
+   * 的字段名），不由代码猜资产名、也不在这里硬编一张 id→量 的表——红线：配置只放数据，逻辑归服务。
+   * 没声明 {@code quantity_basis} 的资产**不产金额**（现在其余四条都是这样：它们的量还不存在），
+   * 也**不记 gap-**：那不是"求不出"，是这条产物压根还没被设计出来，记 gap- 等于向报告承诺一个
+   * 我们没打算给的数。
+   */
+  private void projectWorkItemCost(
+      AttributeAsset attribute,
+      String releaseTag,
+      EvaluationInput input,
+      LocalDate evaluatedOn,
+      List<ReportAnchor> anchors,
+      List<GapRecord> gaps) {
+    if (!ENTITY_TYPE_WORK_ITEM.equals(attribute.entityType())) {
+      return;
+    }
+    Object basis = attribute.props().get("quantity_basis");
+    if (basis == null) {
+      return;
+    }
+    String costId = costIdOf(attribute.assetId());
+    Double quantity = quantityOf(basis.toString(), input);
+    if (quantity == null) {
+      gaps.add(
+          new GapRecord(
+              costId, releaseTag, "missing_input", "缺" + basis + "，算不出这一项的钱"));
+      return;
+    }
+    Map<String, Object> price = priceRange(attribute.props(), input.cityTier());
+    if (price == null
+        || !(price.get("min") instanceof Number min)
+        || !(price.get("max") instanceof Number max)) {
+      gaps.add(new GapRecord(costId, releaseTag, "empty_definition", "单价资产无 price_range 区间"));
+      return;
+    }
+    Map<String, Object> value = new LinkedHashMap<>();
+    value.put("min", Math.round(quantity * min.doubleValue()));
+    value.put("max", Math.round(quantity * max.doubleValue()));
+    anchors.add(
+        new ReportAnchor(
+            costId,
+            attribute.name() + "合计",
+            NUMBER_CLASS_ANALYSIS,
+            "元",
+            VALUE_KIND_RANGE,
+            value,
+            null,
+            releaseTag,
+            "求值线按「单价 × 量」算出：单价 "
+                + price.get("min")
+                + "–"
+                + price.get("max")
+                + " 元/"
+                + attribute.props().get("unit")
+                + "（城市档 "
+                + (input.cityTier() == null ? "全国粗档" : input.cityTier())
+                + "）× "
+                + basis
+                + " "
+                + quantity
+                + "。单价是经验条目、区间本身就宽，故金额区间随之宽。",
+            attribute.calibration(),
+            isDegraded(attribute.calibration()),
+            provenancePolicy.decide(
+                attribute.source(),
+                attribute.effectiveFrom(),
+                attribute.effectiveTo(),
+                attribute.calibration(),
+                evaluatedOn),
+            presentationPolicy.decide(attribute.calibration())));
+  }
+
+  /** 画像里那个量。闭集随量的到位逐条增；认不出的名字返回 null（当作没这个量，不猜）。 */
+  private static Double quantityOf(String basis, EvaluationInput input) {
+    return switch (basis) {
+      case "building_area_sqm" -> input.buildingAreaSqm();
+      case "net_area_sqm" -> input.netAreaSqm();
+      default -> null;
+    };
+  }
+
+  /** {@code attr-price-hydro-labor-sqm} → {@code lkp-cost-hydro-labor-sqm}（金额与单价分属两个落点）。 */
+  private static String costIdOf(String assetId) {
+    return assetId.startsWith("attr-price-")
+        ? "lkp-cost-" + assetId.substring("attr-price-".length())
+        : assetId + "-cost";
   }
 
   /** {@code attr-price-demolition} → {@code lkp-price-demolition}（契约 anchors[].lkpId 恒 lkp- 前缀）。 */
