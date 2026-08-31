@@ -143,14 +143,7 @@ class RulebookEvaluatorTest {
    */
   private static final EvaluationInput INPUT =
       new EvaluationInput(
-          1700,
-          1780,
-          null,
-          null,
-          Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通"),
-          null,
-          null,
-          null);
+          1700, 1780, null, null, Map.of("kitchen_u_shape", "厨房三面台面围合，中间通道贯通"), null, null, null);
 
   @Test
   void evaluatesFormulaAndPassThroughAnchors() {
@@ -257,8 +250,7 @@ class RulebookEvaluatorTest {
    * <p>立案：真跑实测造价章有五条 calibrated 单价却算不出任何总价，收纳章说不出全屋要多少米收纳
    * ——缺的从来不是单价，是量。而这一条的量，靠业主自己知道的两个数就够了，不必等定稿平面。
    *
-   * <p>密度基准取**同一份快照内**的 {@code lkp-storage-density-baseline}：不跨域取值，否则就在求值线
-   * 内部造出章与章的依赖。
+   * <p>密度基准取**同一份快照内**的 {@code lkp-storage-density-baseline}：不跨域取值，否则就在求值线 内部造出章与章的依赖。
    */
   @Test
   void computesStorageTotalMetersFromNetAreaAndDensity() {
@@ -266,7 +258,8 @@ class RulebookEvaluatorTest {
         new EvaluationInput(1700, 1780, null, null, Map.of(), null, 110.0, 80);
 
     ReportDataPackage pkg =
-        evaluator.evaluate(List.of(storageQuantitySnapshot()), withArea, ArtifactEntitlement.PAID, EVALUATED_ON);
+        evaluator.evaluate(
+            List.of(storageQuantitySnapshot()), withArea, ArtifactEntitlement.PAID, EVALUATED_ON);
 
     // 套内 = 110 × 80% = 88 ㎡；88 × [0.25, 0.35] = [22.0, 30.8]
     ReportAnchor total = anchor(pkg, "lkp-storage-total-meters");

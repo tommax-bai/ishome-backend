@@ -298,15 +298,12 @@ public final class RulebookEvaluator {
   /**
    * 单价 × 这一户的量 = **金额**（{@code lkp-cost-*}）。报告里第一笔真的钱。
    *
-   * <p>立案（2026-08-31）：造价章有五条 calibrated 单价却算不出任何总价——**缺的从来不是单价，
-   * 是量**。而"有单位不等于有量"：五条里三条的 {@code unit} 字面都是「㎡」，但拆除的㎡是被拆
-   * 墙体面积、涂刷的㎡是墙面展开面积、水电人工的㎡是**建筑面积**，是三个完全不同的量。
+   * <p>立案（2026-08-31）：造价章有五条 calibrated 单价却算不出任何总价——**缺的从来不是单价， 是量**。而"有单位不等于有量"：五条里三条的 {@code
+   * unit} 字面都是「㎡」，但拆除的㎡是被拆 墙体面积、涂刷的㎡是墙面展开面积、水电人工的㎡是**建筑面积**，是三个完全不同的量。
    *
-   * <p>所以乘哪个量**由数据说**（单价资产的 {@code props.quantity_basis}，取值是匿名画像里那个量
-   * 的字段名），不由代码猜资产名、也不在这里硬编一张 id→量 的表——红线：配置只放数据，逻辑归服务。
-   * 没声明 {@code quantity_basis} 的资产**不产金额**（现在其余四条都是这样：它们的量还不存在），
-   * 也**不记 gap-**：那不是"求不出"，是这条产物压根还没被设计出来，记 gap- 等于向报告承诺一个
-   * 我们没打算给的数。
+   * <p>所以乘哪个量**由数据说**（单价资产的 {@code props.quantity_basis}，取值是匿名画像里那个量 的字段名），不由代码猜资产名、也不在这里硬编一张 id→量
+   * 的表——红线：配置只放数据，逻辑归服务。 没声明 {@code quantity_basis} 的资产**不产金额**（现在其余四条都是这样：它们的量还不存在）， 也**不记
+   * gap-**：那不是"求不出"，是这条产物压根还没被设计出来，记 gap- 等于向报告承诺一个 我们没打算给的数。
    */
   private void projectWorkItemCost(
       AttributeAsset attribute,
@@ -325,9 +322,7 @@ public final class RulebookEvaluator {
     String costId = costIdOf(attribute.assetId());
     Double quantity = quantityOf(basis.toString(), input);
     if (quantity == null) {
-      gaps.add(
-          new GapRecord(
-              costId, releaseTag, "missing_input", "缺" + basis + "，算不出这一项的钱"));
+      gaps.add(new GapRecord(costId, releaseTag, "missing_input", "缺" + basis + "，算不出这一项的钱"));
       return;
     }
     Map<String, Object> price = priceRange(attribute.props(), input.cityTier());
@@ -481,10 +476,10 @@ public final class RulebookEvaluator {
       boolean implemented =
           switch (parameter.assetId()) {
             case "lkp-counter-height",
-                    "lkp-wardrobe-rod",
-                    "lkp-mirror-height",
-                    "lkp-tv-distance",
-                    "lkp-storage-total-meters" ->
+                "lkp-wardrobe-rod",
+                "lkp-mirror-height",
+                "lkp-tv-distance",
+                "lkp-storage-total-meters" ->
                 true;
             default -> false;
           };
@@ -535,9 +530,8 @@ public final class RulebookEvaluator {
    * 落点组装，{@code source} 可由调用方覆写——**公式求出来的数要说清它是怎么来的**。
    *
    * <p>立案（2026-08-31 真跑）：收纳总长第一次算出来（88㎡ × 0.25–0.35 = 22.0–30.8 米）并写进了
-   * 正文，但同一句话里跟着一句**编的**解释——「这个范围锚定的是当前囤货节奏与墙面可嵌入家具形态
-   * 的交集」。查下去，这条算出来的落点 {@code source} 是 null：**我们没告诉写作步这个数怎么来的，
-   * 它就自己编了一个**。数字是真的、解释是假的，比两个都假更危险。
+   * 正文，但同一句话里跟着一句**编的**解释——「这个范围锚定的是当前囤货节奏与墙面可嵌入家具形态 的交集」。查下去，这条算出来的落点 {@code source} 是
+   * null：**我们没告诉写作步这个数怎么来的， 它就自己编了一个**。数字是真的、解释是假的，比两个都假更危险。
    *
    * <p>所以公式求值这一支必须把推导原样带上（哪个输入、乘了哪条系数），标注层与写作步共用它。
    */
@@ -612,11 +606,12 @@ public final class RulebookEvaluator {
             .filter(p -> "lkp-storage-density-baseline".equals(p.assetId()))
             .map(ParameterAsset::value)
             .filter(v -> v instanceof Map<?, ?>)
-            .map(v -> {
-              @SuppressWarnings("unchecked")
-              Map<String, Object> m = (Map<String, Object>) v;
-              return m;
-            })
+            .map(
+                v -> {
+                  @SuppressWarnings("unchecked")
+                  Map<String, Object> m = (Map<String, Object>) v;
+                  return m;
+                })
             .findFirst()
             .orElse(null);
     if (density == null
