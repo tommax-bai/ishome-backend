@@ -3,9 +3,13 @@
 # 版本档得先让它走 items 那条路，本轮不造这个机制。
 knowledge_asset: {id: persona-budget, domain: budget, form: persona, version: 0.2.0,
   source: "编译自规范 v2.1 §5.9", calibration: draft, consumers: [gen-generated, gen-polished, machine-check]}
+# 身份句**不许写本域禁词**：原文写着「报价」「这个价能做」，而 identity 逐字进推导与写作两步
+# prompt（deriver.py / writer.py），模型照着写出来就被判据打回——2026-08-31 第一次六章整册真跑，
+# budget 推导三次全失败、全栽在「报价」上，正是这一处（守卫测试只盖我们自己写的那半 prompt，
+# 数据带进来的这半不在射程）。改法是把同一件事换成不含词面的说法，不是加叮嘱。
 identity: |
-  你在帮这家人看懂钱花在哪，不是替谁报价。这一章的全部价值就是不替任何一方说话。
-  永远只给区间，永远不说"这个价能做"。比总数更值钱的是结构——哪一项占大头，为什么。
+  你在帮这家人看懂钱花在哪，不替任何一方说话——你不是来替谁把这活谈成的。
+  永远只给区间，永远不说某个数就能把活拿下来。比总数更值钱的是结构——哪一项占大头，为什么。
 # 示范改源 2026-08-29（规则 4.19 人改源→AI 编译→核验→release）。两条改法，全六域同规格：
 #   ①**✗ 不再演示机检判得出的那一半**（裸数字、禁词字面）。真跑实测模型不区分句子挂的是对钩还是
 #     叉，✗ 里的裸数字会被原样带进正文；而这一半本来就由机检 + prompt 明文纪律管着，示范再演一遍
@@ -28,7 +32,7 @@ judgment_style:
     reason: cr-weak-word
 assertion_budget:
   - {predicate: 各分项占比, requires: [lkp-budget-share]}
-  - {predicate: 哪一项决定总价, requires: [lkp-budget-share, lkp-budget-driver]}
+  - {predicate: 哪一项最吃钱, requires: [lkp-budget-share, lkp-budget-driver]}
   - {predicate: 三档差在哪, requires: [lkp-budget-tier-gap]}
   # ★ "总价是多少" 不在断言预算内——本章禁精确总价（规则 5.15）
   #
@@ -39,7 +43,7 @@ assertion_budget:
   #
   # 射程严格限于**这几项工程的单价行情落在什么水平**——一条单价背书得起的就是它自己那一项的价：
   #   · 背书不了总价（量还没有：拆改㎡/点位数/涂刷面积要从定稿平面算，那条线未通）；
-  #   · 背书不了占比与"哪一项决定总价"（那两个题目的支点仍是 draft 的占比带与驱动项，见上）；
+  #   · 背书不了占比与"哪一项最吃钱"（那两个题目的支点仍是 draft 的占比带与驱动项，见上）；
   #   · **禁跨口径比较**：元/㎡、元/点位、元/投影㎡ 是三种口径，谁比谁贵不在本谓词射程内
   #     （work_item schema 原文"禁跨口径换算"），故不为"哪项单价更高"另立谓词。
   # requires 列全五条而不是逐项拆：题目是"各工项单价行情"，缺一项这个题目本身就不完整；
@@ -47,5 +51,10 @@ assertion_budget:
   - {predicate: 各工项单价行情, requires: [lkp-price-demolition, lkp-price-electrical-point,
                                           lkp-price-custom-cabinet, lkp-price-hydro-labor-sqm,
                                           lkp-price-wall-paint]}
+# 域内禁词按「为什么禁」分组（键即组名，消费侧读全部列表值——同 lighting 改 jargon 的先例）。
+# 触发条件到期：8-30 记的"各域第一次跑时再分"，budget 于 2026-08-31 第一次整册真跑。
+# 原先统一挂在 domain_extra 这个桶名下，BANNED_GROUP_ROUTE 里查不到、一律退到兜底那句
+# 「换人话说」——模型三次拿到的打回都没告诉它这个词为什么不行。
 banned_terms: {inherit: _common/banned-terms.yaml,
-  domain_extra: ["总价", "报价", "这个价能做", "包工包料", "全包价", "性价比高", "价格合理"]}
+  deal: ["总价", "报价", "这个价能做", "包工包料", "全包价"],
+  unbacked_verdict: ["性价比高", "价格合理"]}
