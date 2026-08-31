@@ -9,7 +9,9 @@ default_calibration: draft
 items:
   - {id: lkp-material-variety-max, name: 全屋主材种类上限, number_class: analysis, value_kind: range, value: {max: 5}, unit: 种,
      source: "内部规范 §5.6（经验条目，无外部真源）"}
-  - {id: lkp-material-warm-cool-ratio, name: 冷暖材质比例带, number_class: analysis, dimensionless: true, value_kind: range, value: {min: 0.3, max: 0.7},
+  # 比率改百分数（用户裁决 2026-08-31，四域一批，判据见 softdeco/parameters.yaml 该批首条注释）：
+  # 量没变，0.3–0.7 就是 30%–70%；立案＝真跑成册逐字「冷暖材质比例做在 0.3–0.7 之间」。
+  - {id: lkp-material-warm-cool-ratio, name: 冷暖材质比例带, number_class: analysis, value_kind: range, value: {min: 30, max: 70}, unit: "%",
      source: "内部规范 §5.6（经验条目）"}
   - {id: lkp-material-tier-gap, name: 三档替代价差带, number_class: analysis, value_kind: comparison,
      value: {medium-vs-low: {min: 1.4, max: 2.0}, high-vs-medium: {min: 1.5, max: 2.5}}, unit: 倍,

@@ -28,9 +28,13 @@ items:
   # 同条自己还写着"无外部标准，属经验条目"。即**它是编译时自造的精度声明，没有源**。
   # 删的理由不是没用，是它在用一个编造的数字重复表达"这条不确定"——而不确定性本就由标注承担
   # （规则 4.10c：经验条目照发、随页挂标注、语域限建议口吻）。删后本条即标准单值，无第三种值形态。
-  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, dimensionless: true, value_kind: single, value: 0.8,
+  # 比率改百分数（用户裁决 2026-08-31，四域一批，判据见 softdeco/parameters.yaml 该批首条注释）：
+  # 量没变，0.8 就是 80%；立案＝真跑成册逐字「我们建议封闭收纳占比就用 0.8」「悬挂 0.5、叠放 0.3、
+  # 抽屉 0.2」。本条的 source「二八原则」自己给的就是 80，存成 0.8 是编译时折算过一次。
+  # 「二八原则」仍是本域禁词，只是不说这四个字，不妨碍把 80% 印出来。
+  - {id: lkp-storage-closed-ratio, name: 封闭收纳占比, number_class: analysis, value_kind: single, value: 80, unit: "%",
      source: "行业通行（二八原则）", source_pending: "无外部标准，属经验条目"}
-  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, dimensionless: true, value_kind: component, value: {hang: 0.5, fold: 0.3, drawer: 0.2},
+  - {id: lkp-wardrobe-hang-fold-ratio, name: 衣柜挂/叠/抽比例, number_class: selection, value_kind: component, value: {hang: 50, fold: 30, drawer: 20}, unit: "%",
      source_pending: "随 Q-STORAGE 衣物量实测回流校准"}
   - {id: lkp-long-hang-height, name: 长衣区净高, number_class: selection, value_kind: range, value: {min: 1400}, unit: mm,
      linked: [ergonomics/lkp-wardrobe-rod]}

@@ -6,11 +6,20 @@ form: parameter
 release: null
 default_calibration: draft
 items:
-  - {id: lkp-color-ratio, name: 主辅点缀配色比例, number_class: analysis, dimensionless: true, value_kind: component, value: {main: 0.6, secondary: 0.3, accent: 0.1},
+  # 比率改百分数（用户裁决 2026-08-31，四域一批；原话"我觉得没问题，可以做"）。**量一个字没变**：
+  # 0.6 就是 60%，换的是给业主的记数形态不是值。立案＝真跑成册逐字「主色本身占满 0.6 比重」。
+  # `dimensionless: true` 说"这个量没有量纲"没错，错在把它当成了"不用给业主一个记数形态"——
+  # 同为无量纲比值的 lighting/lkp-accent-ratio 写着 unit「倍」，印出来是「3–5 倍」，读得懂。
+  # 顺带撤掉一层折算：本条 source 逐字就是「60-30-10」（本文件头注也这么写），存成 0.6/0.3/0.1
+  # 是编译时自己折算过一次；改回百分数＝回到源的字面，同得房率取百分数的理由（contracts
+  # report_data_package「少一层换算就少一处会漂移的口径」）。评估经过见中控仓
+  # 《交接文档-比率怎么印给业主.md》追记一。
+  - {id: lkp-color-ratio, name: 主辅点缀配色比例, number_class: analysis, value_kind: component, value: {main: 60, secondary: 30, accent: 10}, unit: "%",
      source: "行业通行（60-30-10）", source_pending: "无外部标准，属经验条目"}
   - {id: lkp-color-main-max, name: 全屋主色数量上限, number_class: analysis, value_kind: range, value: {max: 3}, unit: 种,
      source: "内部规范 §5.8（经验条目）"}
-  - {id: lkp-blackout-rate, name: 卧室窗帘遮光率, number_class: selection, value_kind: range, value: {min: 0.9}, unit: 比率,
+  # 单位「比率」→「%」（同上批）：**「比率」是量的名字不是记数词**，拼进正文就成了「0.9 比率」。
+  - {id: lkp-blackout-rate, name: 卧室窗帘遮光率, number_class: selection, value_kind: range, value: {min: 90}, unit: "%",
      trigger_note: "朝向触发：东向/南向主卧取上限", source_pending: "遮光率检测方法标准 + 厂商参数 ≥2 源"}
   # value_kind=range 声明的是公式求出的那个量：外扩量 [200,300]mm。"短边不小于沙发长度"是同一条
   # 规则里的另一句约束（一个不等式，不是一个可引用的项），公式可执行形态未登记前不产出落点。
