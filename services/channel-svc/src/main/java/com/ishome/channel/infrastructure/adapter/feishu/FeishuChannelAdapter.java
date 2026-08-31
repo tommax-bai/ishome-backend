@@ -1,6 +1,7 @@
 package com.ishome.channel.infrastructure.adapter.feishu;
 
 import com.ishome.channel.domain.port.ChannelAdapter;
+import com.ishome.channel.domain.port.UploadedImageStore;
 import com.ishome.channel.v1.ChannelCapability;
 import com.ishome.channel.v1.ChannelGrade;
 import com.ishome.channel.v1.HumanTakeover;
@@ -10,6 +11,7 @@ import com.lark.oapi.Client;
 import com.lark.oapi.service.im.v1.model.CreateMessageReq;
 import com.lark.oapi.service.im.v1.model.CreateMessageReqBody;
 import com.lark.oapi.service.im.v1.model.CreateMessageResp;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,9 +30,16 @@ public final class FeishuChannelAdapter implements ChannelAdapter {
   private static final Logger log = LoggerFactory.getLogger(FeishuChannelAdapter.class);
 
   private final Client client;
+  private final UploadedImageStore uploadedImageStore;
+  private final FeishuImageSink feishuImageSink;
 
-  public FeishuChannelAdapter(FeishuProperties properties) {
+  public FeishuChannelAdapter(
+      FeishuProperties properties,
+      UploadedImageStore uploadedImageStore,
+      FeishuImageSink feishuImageSink) {
     this.client = Client.newBuilder(properties.appId(), properties.appSecret()).build();
+    this.uploadedImageStore = uploadedImageStore;
+    this.feishuImageSink = feishuImageSink;
   }
 
   @Override
@@ -55,7 +64,7 @@ public final class FeishuChannelAdapter implements ChannelAdapter {
 
   @Override
   public String send(UnifiedMessage message) {
-    FeishuOutboundMessage outbound = FeishuMessageTranslator.toOutboundMessage(message);
+    FeishuOutboundMessage outbound = toFeishuMessage(message);
     CreateMessageReq req =
         CreateMessageReq.newBuilder()
             .receiveIdType("open_id")
@@ -83,5 +92,24 @@ public final class FeishuChannelAdapter implements ChannelAdapter {
     } catch (Exception e) {
       throw new IllegalStateException("feishu send failed", e);
     }
+  }
+
+  /**
+   * 统一模型 → 飞书发送形态。**带对象键的那张图在这一步换成飞书的 image_key**：按键从我们自己的私有桶 取出字节，交给飞书换回
+   * image_key，再按原来那条路发出去——飞书发图只认它自家的 key，我们生成的图 在它那边从来没有过。
+   *
+   * <p>取桶与上传两次 IO 都收在这儿，翻译本身仍是纯函数（两条路的判据写在 {@code FeishuMessageTranslator#outboundImageKey}）。
+   * 任一步失败都当场抛、不往下走：宁可这次发送失败被上游看见，也不发出一条业主打不开的图。
+   *
+   * <p>**同一张图重复发会重复上传一遍**：飞书开放平台没有文档说明"同内容返回同一 image_key"，查不到确凿结论 就不按猜来的语义建缓存（判据落在 2026-08-31
+   * 的交接记录）。重复发本身已被出站幂等键挡在 application 层， 走到这里的都是真要再发一次。
+   */
+  FeishuOutboundMessage toFeishuMessage(UnifiedMessage message) {
+    Optional<String> uploadedImageKey =
+        FeishuMessageTranslator.outboundObjectKey(message)
+            .map(
+                objectKey ->
+                    feishuImageSink.upload(uploadedImageStore.getImageBytes(objectKey), objectKey));
+    return FeishuMessageTranslator.toOutboundMessage(message, uploadedImageKey);
   }
 }

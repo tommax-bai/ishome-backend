@@ -114,10 +114,28 @@ class FeishuLongConnectionTest {
     assertEquals("你好，设计我的家", relayed.get(0).getText().getText());
   }
 
+  /** 入站只用得上桶的"写"这一半；"读"那一半是出站发图用的，测在 {@link FeishuChannelAdapterTest}。 */
+  @FunctionalInterface
+  private interface ImageStoreStub {
+    String store(byte[] imageBytes, UploadedImageFormat format);
+  }
+
   private FeishuLongConnection connectionWith(
-      FeishuImageSource imageSource, UploadedImageStore imageStore) {
+      FeishuImageSource imageSource, ImageStoreStub imageStore) {
+    UploadedImageStore store =
+        new UploadedImageStore() {
+          @Override
+          public String store(byte[] imageBytes, UploadedImageFormat format) {
+            return imageStore.store(imageBytes, format);
+          }
+
+          @Override
+          public byte[] getImageBytes(String objectKey) {
+            throw new AssertionError("入站这条路不读桶");
+          }
+        };
     return new FeishuLongConnection(
-        new FeishuProperties("app-id", "app-secret"), relay, imageSource, imageStore, notice);
+        new FeishuProperties("app-id", "app-secret"), relay, imageSource, store, notice);
   }
 
   private static EventMessage imageMessage() {

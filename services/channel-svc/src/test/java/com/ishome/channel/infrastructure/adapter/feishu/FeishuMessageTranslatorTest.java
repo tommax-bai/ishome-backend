@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ishome.channel.domain.UploadedImage;
 import com.ishome.channel.v1.AudioContent;
 import com.ishome.channel.v1.CardContent;
+import com.ishome.channel.v1.ImageContent;
 import com.ishome.channel.v1.MessageDirection;
 import com.ishome.channel.v1.QuickReplyContent;
 import com.ishome.channel.v1.QuickReplyOption;
@@ -142,7 +143,8 @@ class FeishuMessageTranslatorTest {
   void translatesOutboundText() throws Exception {
     FeishuOutboundMessage outbound =
         FeishuMessageTranslator.toOutboundMessage(
-            outboundBuilder().setText(TextContent.newBuilder().setText("三张方案图好了").build()).build());
+            outboundBuilder().setText(TextContent.newBuilder().setText("三张方案图好了").build()).build(),
+            Optional.empty());
 
     assertEquals("text", outbound.msgType());
     assertEquals("ou_123", outbound.receiveId());
@@ -160,7 +162,8 @@ class FeishuMessageTranslatorTest {
                         .setDescription("点击查看交付图集")
                         .setLinkUrl("https://example.com/p/1")
                         .build())
-                .build());
+                .build(),
+            Optional.empty());
 
     assertEquals("interactive", outbound.msgType());
     JsonNode card = MAPPER.readTree(outbound.contentJson());
@@ -183,7 +186,8 @@ class FeishuMessageTranslatorTest {
                         .addOptions(
                             QuickReplyOption.newBuilder().setOptionId("opt-no").setLabel("有问题"))
                         .build())
-                .build());
+                .build(),
+            Optional.empty());
 
     JsonNode actions =
         MAPPER.readTree(outbound.contentJson()).path("elements").get(1).path("actions");
@@ -196,7 +200,31 @@ class FeishuMessageTranslatorTest {
     UnifiedMessage audio =
         outboundBuilder().setAudio(AudioContent.newBuilder().setAudioUrl("oss://a.ogg")).build();
     assertThrows(
-        IllegalArgumentException.class, () -> FeishuMessageTranslator.toOutboundMessage(audio));
+        IllegalArgumentException.class,
+        () -> FeishuMessageTranslator.toOutboundMessage(audio, Optional.empty()));
+  }
+
+  @Test
+  void readsOutboundObjectKeyOnlyFromImageMessagesThatCarryOne() {
+    // 带对象键 = 我们自己桶里的图，要取桶换 image_key（IO 由 adapter 做）
+    assertEquals(
+        Optional.of("gen/floorplan-a/plan.png"),
+        FeishuMessageTranslator.outboundObjectKey(
+            outboundBuilder()
+                .setImage(ImageContent.newBuilder().setObjectKey("gen/floorplan-a/plan.png"))
+                .build()));
+    // 飞书自家的图原样转发，不进桶那条路
+    assertTrue(
+        FeishuMessageTranslator.outboundObjectKey(
+                outboundBuilder()
+                    .setImage(ImageContent.newBuilder().setImageUrl("feishu-image://img_v2_abc"))
+                    .build())
+            .isEmpty());
+    // 非图片消息压根不问桶
+    assertTrue(
+        FeishuMessageTranslator.outboundObjectKey(
+                outboundBuilder().setText(TextContent.newBuilder().setText("三张方案图好了")).build())
+            .isEmpty());
   }
 
   private static UnifiedMessage.Builder outboundBuilder() {

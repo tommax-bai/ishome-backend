@@ -25,12 +25,16 @@ ishome:
     # 用户发来的图落私有桶（用户裁决 2026-08-30 晚）：渠道给的 image_key 只有渠道侧握凭证能取，
     # 图不落桶，这条线在渠道边界上就断了。键由图片内容确定性推得（contracts registries/object_keys.md）。
     # 公开与私有**分桶不分前缀**——同一只桶靠前缀分，改错一次 ACL 就全公开了。
+    # 反过来发图走同一份凭证：为业主生成的图只在这只私有桶里、渠道那边从来没有过它——
+    # 出站按 object_key 取桶拿到字节，再按各渠道自己的规矩交上去（飞书是先换 image_key）。
     # 凭证不入库：本机 ~/.ishome/oss-local.env，服务器 /opt/ishome/env/oss.env。
-    # **默认全空**：没配时本服务照常起（文字会话不受影响），收到图时响亮失败并告知用户。
+    # **默认全空**：没配时本服务照常起（文字会话不受影响），收到图 / 要发图时才响亮失败。
     endpoint: ${ISHOME_OSS_ENDPOINT:}
     bucket-private: ${ISHOME_OSS_BUCKET_PRIVATE:}
     access-key-id: ${ISHOME_OSS_ACCESS_KEY_ID:}
     access-key-secret: ${ISHOME_OSS_ACCESS_KEY_SECRET:}
 
 # 飞书接入实例凭证（缺省则 feishu adapter 不装配，渠道不启用）：
-# channel.feishu.ishome-prod.app_id / app_secret —— 经环境变量或 secret 注入，勿写进本文件
+# channel.feishu.ishome-prod.app_id / app_secret —— 经环境变量或 secret 注入，勿写进本文件。
+# 发我们自己桶里的图还要求这个自建应用开了「获取与上传图片或文件资源」（im:resource）权限：
+# 没开则上传那一步响亮失败（发不出去，不会静默发出一条打不开的图）。
