@@ -370,6 +370,41 @@ for f, d in docs.items():
         elif src and LOCATOR.search(src) and not pend: eligible.append(ctx)
         elif not src: warns.append(f"{ctx}: source 为空")
 
+# 数据面不许含本域禁词（用户裁决 2026-09-02：开关开、存量一起改）——整册首跑失败的头号归因是
+# release 数据自己写着它禁的词：写手守卫只盖我们写的那半 prompt，数据这半在发版源头拦。
+# 扫描面照立案扫法（《交接文档-整册能不能出得来.md》追记二）：persona.identity ∪
+# assertion_budget[].predicate ∪ rule.content ∪ rule.rationale。banned_terms 自身与
+# judgment_style 不在面内：前者是禁词表本身，后者的 bad 半句是结构化标明的错误示范——
+# 而 identity 是整段喂给写手的自由正文，负例藏在里面模型照抄（material「优异」正是这么进的）。
+for dom in sorted({os.path.basename(os.path.dirname(f)) for f in files}):
+    if dom.startswith("_"): continue
+    banned = banned_terms_of(dom, docs)
+    if not banned: continue
+    surfaces: list[tuple[str, str]] = []
+    for f, d in docs.items():
+        if os.path.basename(os.path.dirname(f)) != dom or not d: continue
+        rel = os.path.relpath(f, SEEDS)
+        form_of = d.get("form") or (d.get("knowledge_asset") or {}).get("form")
+        if form_of == "persona" or "knowledge_asset" in d:
+            for it in d.get("items", [d]):
+                it = it or {}
+                if it.get("identity"):
+                    surfaces.append((f"{rel}#identity", str(it["identity"])))
+                for a in it.get("assertion_budget") or []:
+                    p = str((a or {}).get("predicate") or "")
+                    surfaces.append((f"{rel}#assertion_budget「{p}」", p))
+        elif form_of == "rule":
+            for it in d.get("items") or []:
+                it = it or {}
+                for fld in ("content", "rationale"):
+                    if it.get(fld):
+                        surfaces.append((f"{rel}#{it.get('id','?')}.{fld}", str(it[fld])))
+    for where, text in surfaces:
+        for term in sorted(banned):
+            if term in text:
+                errors.append(f"{where}: 含本域禁词「{term}」——数据自己写着它禁的词，写手会照抄进"
+                              f"正文（整册首跑头号归因）；改说法不改义（同「延米→米」先例）")
+
 print(f"== 核验跑批：{len(files)} 文件，参数 {len(param_ids)}，机检 {len(check_ids)}")
 for e in errors: print("ERROR", e)
 for w in warns: print("warn ", w)

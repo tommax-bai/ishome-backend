@@ -50,7 +50,7 @@ items:
   - id: rule-personal-lighting-reading-accent
     layer: tier-personal
     trigger: {type: answer, question_id: Q-HABIT, answer_match: [reading]}
-    content: "沙发阅读位设重点照明（照度=环境 3-5 倍）"
+    content: "沙发阅读位设重点照明（比周围环境亮 3-5 倍）"
     rationale: "在沙发上看书，屋里的主灯不够用"
     severity: recommended
     calibration: draft

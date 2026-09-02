@@ -14,4 +14,4 @@ items:
      content: "两人同时下厨时，U型两排间距取上限区间", rationale: "一个人弯腰开柜、另一个人能过", severity: recommended,
      calibration: draft, consumers: [art-ergonomics-chapter]}
   - {id: rule-personal-ergo-pet-flow, layer: tier-personal, trigger: {type: answer, question_id: Q-PET, answer_match: [cat, dog]},
-     content: "宠物动线避开主通道最窄段，食盆位不占通道净宽", rationale: "主通道被占用后实际净宽不达标", severity: recommended, calibration: draft}
+     content: "宠物动线避开主通道最窄段，食盆位不挤占通道宽度", rationale: "主通道被食盆占掉一块，实际能走的宽度就不够了", severity: recommended, calibration: draft}

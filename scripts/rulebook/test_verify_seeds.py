@@ -195,6 +195,48 @@ unit_case("单位撞域内禁词要拦（组名不是 domain_extra 也要认）"
 unit_case("不撞就放行", "lx",
           common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=False)
 
+
+# ⑭ 数据面不许含本域禁词（用户裁决 2026-09-02）——整册首跑头号归因（release 数据自己写着
+# 它禁的词）在发版源头拦。扫描面＝identity ∪ assertion_budget.predicate ∪ rule.content/rationale；
+# judgment_style 的 bad 示范是结构化负例，**刻意不在面内**，这里正反都钉住。
+def data_case(name: str, *, identity: str = "灯光顾问",
+              assertion: str = "[]", judgment: str = "[]",
+              rule_content: str | None = None, expect_error: bool):
+    files = {
+        "_common/banned-terms.yaml": 'scope: cross-domain\nform: vocabulary\nmethodology: ["依据"]\n',
+        "lighting/persona.yaml": (
+            "domain: lighting\nform: persona\nrelease: null\n"
+            f"identity: {identity}\n"
+            f"judgment_style: {judgment}\n"
+            f"assertion_budget: {assertion}\n"
+            'banned_terms:\n  inherit: _common/banned-terms.yaml\n  jargon: ["照度"]\n'),
+    }
+    if rule_content is not None:
+        files["lighting/rules.yaml"] = (
+            "domain: lighting\nform: rule\nrelease: null\nitems:\n"
+            f'  - {{id: rule-probe, layer: tier-practice, content: "{rule_content}", '
+            'rationale: "探针", severity: recommended, calibration: draft}\n')
+    out = run_with(files)
+    hit = any(line.startswith("ERROR") and "数据自己写着它禁的词" in line for line in out.splitlines())
+    if hit != expect_error:
+        failures.append(f"{name}: 期望{'报错' if expect_error else '不报错'}，实际：\n{out}")
+    print(f"  {'ok  ' if hit == expect_error else 'FAIL'} {name}")
+
+
+data_case("身份句含本域禁词即拒（material「优异」的形态）",
+          identity="照度是关键", expect_error=True)
+data_case("断言题目名含本域禁词即拒（lighting 题目名的形态）",
+          assertion="[{predicate: 重点照明照度倍数, requires: []}]", expect_error=True)
+data_case("规则正文含本域禁词即拒（ergonomics 宠物规则的形态）",
+          rule_content="阅读位照度要够", expect_error=True)
+data_case("judgment_style 的 bad 示范不在面内（结构化负例，机器认得出）",
+          judgment='[{bad: "照度达标即可", good: "晚上看书眼睛不累", reason: cr-probe}]',
+          expect_error=False)
+data_case("公共禁词同样进数据面核验（不止 domain_extra）",
+          identity="本方案依据充分", expect_error=True)
+data_case("干净数据放行",
+          rule_content="沙发旁留一盏看书的灯", expect_error=False)
+
 print()
 if failures:
     for f in failures:

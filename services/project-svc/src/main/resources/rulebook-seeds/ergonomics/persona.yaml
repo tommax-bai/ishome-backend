@@ -22,7 +22,7 @@ judgment_style:
 
 assertion_budget:
   - {predicate: 台面高度, requires: [lkp-counter-height]}
-  - {predicate: 通道净宽是否够, requires: [lkp-passage-main, lkp-passage-secondary]}
+  - {predicate: 通道宽度是否够用, requires: [lkp-passage-main, lkp-passage-secondary]}   # 改说法不改义（2026-09-02 禁词开关）：原「通道净宽是否够」，「净宽」本域禁词
   - {predicate: 厨房动线是否合理, requires: [lkp-work-triangle]}
   - {predicate: 校核是否通过, requires: [lkp-passage-main, lkp-passage-secondary, lkp-bed-side, lkp-wardrobe-front]}
 

@@ -36,7 +36,7 @@ judgment_style:
 
 assertion_budget:
   # 允许下判断句的谓词：必须有 gen-evaluated / gen-assembled 计算背书
-  - predicate: 重点照明照度倍数
+  - predicate: 重点照明比环境亮几倍   # 改说法不改义（2026-09-02 禁词开关）：原「重点照明照度倍数」，「照度」本域禁词；句式与 lkp-accent-ratio 注释「比周围环境亮 N 倍」同源
     requires: [lkp-accent-ratio]
   - predicate: 全屋色温种类上限
     requires: [lkp-cct-variety-max]
