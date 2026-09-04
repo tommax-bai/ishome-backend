@@ -35,6 +35,17 @@ ishome:
       # 下游只做"启动 workflow 即返回"，不等成文——超时按启动动作定，不按生成时长定。
       connect-timeout-ms: 2000
       read-timeout-ms: 10000
+    # 本服务自己的对外地址：注入给编排侧当结果回调地址（编排侧不知道业务侧在哪）。
+    # 本机默认回环；服务器上编排 worker 与本服务同机时同样可用，跨机经环境变量覆盖。
+    self-base-url: ${ISHOME_PROJECT_SELF_BASE_URL:http://127.0.0.1:8103}
+    # 会话侧 gRPC（产物呈现那一跳）：本机 chat-svc 默认 :9101，服务器 :19101 经环境变量覆盖。
+    chat-target: ${ISHOME_CHAT_GRPC_TARGET:localhost:9101}
+    outbox:
+      # outbox 中继节拍：总线接入前由本服务定时把未投递事件送到会话侧
+      relay-interval-ms: ${ISHOME_OUTBOX_RELAY_INTERVAL_MS:2000}
+      relay-initial-delay-ms: 5000
+    # 流程定义版本：建项时固化（D10）
+    process-version: v1
 
   oss:
     # 私有产物存放（用户裁决 2026-08-30 晚）：报告册写在私有桶里，业主靠**签名链接**打开。

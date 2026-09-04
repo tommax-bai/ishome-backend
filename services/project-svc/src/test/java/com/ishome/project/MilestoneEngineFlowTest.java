@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ishome.project.application.ArtifactConfirmedCommand;
 import com.ishome.project.application.ArtifactRegisterResult;
 import com.ishome.project.application.ArtifactRegisteredCommand;
@@ -24,15 +25,18 @@ import com.ishome.project.infrastructure.definition.ProcessDefinitionRepositoryI
 import com.ishome.project.testsupport.InMemoryArtifactRepository;
 import com.ishome.project.testsupport.InMemoryDecisionRepository;
 import com.ishome.project.testsupport.InMemoryGenerationTaskRepository;
+import com.ishome.project.testsupport.InMemoryOutboxRepository;
 import com.ishome.project.testsupport.InMemoryProjectRepository;
 import com.ishome.project.testsupport.InMemoryRevisionLogRepository;
 import com.ishome.project.testsupport.InMemorySlotRepository;
+import com.ishome.project.testsupport.RecordingVisualsGateway;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** 里程碑引擎事件驱动全链路（单测：内存假仓储注入，PG 实跑见 ProjectPersistenceIntegrationTest）。 */
 class MilestoneEngineFlowTest {
+  private static final String FLOORPLAN_KEY = "uploads/" + "a".repeat(64) + "/original.png";
 
   private InMemoryGenerationTaskRepository generationTaskRepository;
   private ProjectAppService projectAppService;
@@ -48,7 +52,12 @@ class MilestoneEngineFlowTest {
             generationTaskRepository,
             new InMemoryRevisionLogRepository(),
             new InMemoryDecisionRepository(),
-            new ProcessDefinitionRepositoryImpl());
+            new ProcessDefinitionRepositoryImpl(),
+            new InMemoryOutboxRepository(),
+            new RecordingVisualsGateway(),
+            new ObjectMapper(),
+            "http://127.0.0.1:8103",
+            "v1");
   }
 
   @Test
@@ -64,16 +73,13 @@ class MilestoneEngineFlowTest {
     ProjectCreatedResult created = createProject();
     String projectId = created.projectId();
 
-    // 前四个槽位：判据部分满足，不迁移
-    fill(projectId, "floorplan", "estate-fp-001");
-    fill(projectId, "usable_area_sqm", "89");
-    fill(projectId, "city", "杭州");
-    MilestoneProgressResult partial = fill(projectId, "budget_range_cents", "20000000-30000000");
+    // 只有户型图：判据部分满足，不迁移（业主开头只给两样：面积 + 户型图，用户裁决 2026-08-31）
+    MilestoneProgressResult partial = fill(projectId, "floorplan", FLOORPLAN_KEY);
     assertFalse(partial.transitioned());
     assertEquals("M0", partial.currentMilestone());
 
-    // 第五个槽位补齐：M0 判据满足 → 迁 M0.5 → on_enter 建愿景图任务
-    MilestoneProgressResult full = fill(projectId, "family_structure", "三口之家");
+    // 面积补齐：M0 判据满足 → 迁 M0.5 → on_enter 建愿景图任务（并当场派发三张图）
+    MilestoneProgressResult full = fill(projectId, "building_area_sqm", "138");
     assertTrue(full.transitioned());
     assertEquals("M0.5", full.currentMilestone());
     assertEquals(List.of("M0.5"), full.enteredMilestones());
@@ -82,11 +88,12 @@ class MilestoneEngineFlowTest {
     List<GenerationTask> tasks = generationTaskRepository.listByProjectId(projectId);
     assertEquals(1, tasks.size());
     assertEquals("vision_image", tasks.get(0).taskType());
-    assertEquals(GenerationTaskStatus.PENDING, tasks.get(0).status());
+    // 派发成功即 RUNNING（假网关记下派发），不再停在 PENDING
+    assertEquals(GenerationTaskStatus.RUNNING, tasks.get(0).status());
   }
 
   @Test
-  void visionImagePresentedCompletesM05WithoutConfirmation() {
+  void visionImagesPresentedCompleteM05WithoutConfirmation() {
     String projectId = createProjectAtM05();
 
     // GENERATED 登记：判据（PRESENTED）未满足
@@ -94,23 +101,18 @@ class MilestoneEngineFlowTest {
         projectAppService.registerArtifact(
             new ArtifactRegisteredCommand(
                 projectId,
-                "vision_image",
-                "oss://vision/v1.png",
+                "vision_mood_image",
+                "oss://vision/mood.png",
                 "{}",
                 "{}",
                 ArtifactStatus.GENERATED));
     assertFalse(generated.progress().transitioned());
 
-    // 送达（PRESENTED）：M0.5 完成 → 迁 M1（无需确认——不求准求心动）
+    // 三张都送达（PRESENTED）才算：M0.5 完成 → 迁 M1（无需确认——不求准求心动）
+    registerPresented(projectId, "vision_mood_image", "oss://vision/mood.png");
+    registerPresented(projectId, "vision_brief_image", "oss://vision/brief.png");
     ArtifactRegisterResult presented =
-        projectAppService.registerArtifact(
-            new ArtifactRegisteredCommand(
-                projectId,
-                "vision_image",
-                "oss://vision/v2.png",
-                "{}",
-                "{}",
-                ArtifactStatus.PRESENTED));
+        registerPresented(projectId, "vision_style_image", "oss://vision/style.png");
     assertTrue(presented.progress().transitioned());
     assertEquals("M1", presented.progress().currentMilestone());
   }
@@ -201,17 +203,16 @@ class MilestoneEngineFlowTest {
 
   private String createProjectAtM05() {
     ProjectCreatedResult created = createProject();
-    fill(created.projectId(), "floorplan", "estate-fp-001");
-    fill(created.projectId(), "usable_area_sqm", "89");
-    fill(created.projectId(), "city", "杭州");
-    fill(created.projectId(), "budget_range_cents", "20000000-30000000");
-    fill(created.projectId(), "family_structure", "三口之家");
+    fill(created.projectId(), "floorplan", FLOORPLAN_KEY);
+    fill(created.projectId(), "building_area_sqm", "138");
     return created.projectId();
   }
 
   private String createProjectAtM1() {
     String projectId = createProjectAtM05();
-    registerPresented(projectId, "vision_image", "oss://vision/v1.png");
+    registerPresented(projectId, "vision_mood_image", "oss://vision/mood.png");
+    registerPresented(projectId, "vision_brief_image", "oss://vision/brief.png");
+    registerPresented(projectId, "vision_style_image", "oss://vision/style.png");
     return projectId;
   }
 

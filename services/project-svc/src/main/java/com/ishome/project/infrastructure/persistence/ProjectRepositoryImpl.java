@@ -1,6 +1,7 @@
 package com.ishome.project.infrastructure.persistence;
 
 import com.ishome.project.domain.Project;
+import com.ishome.project.domain.ProjectOwner;
 import com.ishome.project.domain.ProjectStatus;
 import com.ishome.project.domain.port.ProjectRepository;
 import java.time.OffsetDateTime;
@@ -34,6 +35,14 @@ public class ProjectRepositoryImpl implements ProjectRepository {
     return Optional.ofNullable(projectMapper.findActiveById(projectId)).map(this::toDomain);
   }
 
+  @Override
+  public Optional<Project> findActiveByOwner(ProjectOwner owner) {
+    return Optional.ofNullable(
+            projectMapper.findActiveByOwner(
+                owner.channelType(), owner.channelInstance(), owner.externalUserId()))
+        .map(this::toDomain);
+  }
+
   private ProjectPO toPo(Project project) {
     ProjectPO po = new ProjectPO();
     po.setId(project.id());
@@ -42,6 +51,11 @@ public class ProjectRepositoryImpl implements ProjectRepository {
     po.setProcessVersion(project.processVersion());
     po.setCurrentMilestone(project.currentMilestone());
     po.setStatus(project.status().name());
+    if (project.owner() != null) {
+      po.setOwnerChannelType(project.owner().channelType());
+      po.setOwnerChannelInstance(project.owner().channelInstance());
+      po.setOwnerExternalUserId(project.owner().externalUserId());
+    }
     return po;
   }
 
@@ -52,6 +66,12 @@ public class ProjectRepositoryImpl implements ProjectRepository {
         po.getFloorplanRef(),
         po.getProcessVersion(),
         po.getCurrentMilestone(),
-        ProjectStatus.valueOf(po.getStatus()));
+        ProjectStatus.valueOf(po.getStatus()),
+        po.getOwnerChannelType() == null
+            ? null
+            : new ProjectOwner(
+                po.getOwnerChannelType(),
+                po.getOwnerChannelInstance(),
+                po.getOwnerExternalUserId()));
   }
 }

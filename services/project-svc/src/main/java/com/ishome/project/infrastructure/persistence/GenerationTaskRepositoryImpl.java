@@ -6,6 +6,7 @@ import com.ishome.project.domain.port.GenerationTaskRepository;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /** svc_project.generation_tasks PG 实现：save 为按 id 的 insert-or-update（完成后回填 artifact_id）。 */
@@ -30,6 +31,11 @@ public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
   }
 
   @Override
+  public Optional<GenerationTask> findById(String taskId) {
+    return Optional.ofNullable(generationTaskMapper.findActiveById(taskId)).map(this::toDomain);
+  }
+
+  @Override
   public List<GenerationTask> listByProjectId(String projectId) {
     return generationTaskMapper.listActiveByProjectId(projectId).stream()
         .map(this::toDomain)
@@ -44,6 +50,7 @@ public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
     po.setInputSnapshot(task.inputSnapshot());
     po.setStatus(task.status().name());
     po.setArtifactId(task.artifactId());
+    po.setResult(task.result());
     return po;
   }
 
@@ -54,6 +61,7 @@ public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
         po.getTaskType(),
         po.getInputSnapshot(),
         GenerationTaskStatus.valueOf(po.getStatus()),
-        po.getArtifactId());
+        po.getArtifactId(),
+        po.getResult());
   }
 }

@@ -30,10 +30,12 @@ class ProcessDefinitionsEndpointTest {
         .andExpect(jsonPath("$.milestones[0].id").value("M0"))
         .andExpect(jsonPath("$.milestones[7].id").value("M6"))
         // project 消费切片：判据（简单谓词）+ on_enter + 修订预算
-        .andExpect(jsonPath("$.milestones[0].completion_criteria.slots.length()").value(5))
+        // M0 判据只剩两样：面积 + 户型图（用户裁决 2026-08-31）；M0.5 三张图都送达才算
+        .andExpect(jsonPath("$.milestones[0].completion_criteria.slots.length()").value(2))
+        .andExpect(jsonPath("$.milestones[1].completion_criteria.artifacts.length()").value(3))
         .andExpect(
             jsonPath("$.milestones[1].completion_criteria.artifacts[0].artifact_type")
-                .value("vision_image"))
+                .value("vision_mood_image"))
         .andExpect(
             jsonPath("$.milestones[1].completion_criteria.artifacts[0].required_status")
                 .value("PRESENTED"))

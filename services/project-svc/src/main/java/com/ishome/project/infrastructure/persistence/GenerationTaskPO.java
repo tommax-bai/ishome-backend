@@ -17,6 +17,7 @@ public class GenerationTaskPO {
   private String inputSnapshot;
   private String status;
   private String artifactId;
+  private String result;
   private OffsetDateTime updatedAt;
 
   public String getId() {
@@ -73,5 +74,13 @@ public class GenerationTaskPO {
 
   public void setUpdatedAt(OffsetDateTime updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public String getResult() {
+    return result;
+  }
+
+  public void setResult(String result) {
+    this.result = result;
   }
 }

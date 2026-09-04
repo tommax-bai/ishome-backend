@@ -4,6 +4,7 @@ import com.ishome.project.domain.GenerationTask;
 import com.ishome.project.domain.port.GenerationTaskRepository;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** 内存假实现——仅供单测注入。 */
@@ -14,6 +15,11 @@ public class InMemoryGenerationTaskRepository implements GenerationTaskRepositor
   @Override
   public void save(GenerationTask task) {
     store.put(task.id(), task);
+  }
+
+  @Override
+  public Optional<GenerationTask> findById(String taskId) {
+    return Optional.ofNullable(store.get(taskId));
   }
 
   @Override

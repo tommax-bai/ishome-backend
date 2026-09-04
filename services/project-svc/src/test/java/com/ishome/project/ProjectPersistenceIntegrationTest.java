@@ -21,17 +21,24 @@ import com.ishome.project.domain.RevisionLog;
 import com.ishome.project.domain.Slot;
 import com.ishome.project.domain.port.ArtifactRepository;
 import com.ishome.project.domain.port.DecisionRepository;
+import com.ishome.project.domain.port.DeliverablesPresenter;
+import com.ishome.project.domain.port.FloorplanVisualsGateway;
 import com.ishome.project.domain.port.GenerationTaskRepository;
 import com.ishome.project.domain.port.ProjectRepository;
 import com.ishome.project.domain.port.RevisionLogRepository;
 import com.ishome.project.domain.port.SlotRepository;
 import com.ishome.project.testsupport.PostgresIntegrationTestSupport;
+import com.ishome.project.testsupport.RecordingDeliverablesPresenter;
+import com.ishome.project.testsupport.RecordingVisualsGateway;
 import com.ishome.shared.kernel.testsupport.EnabledIfLocalPostgres;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -41,8 +48,27 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @EnabledIfLocalPostgres
-@Import(PostgresIntegrationTestSupport.CleanMigrateConfig.class)
+@Import({
+  PostgresIntegrationTestSupport.CleanMigrateConfig.class,
+  ProjectPersistenceIntegrationTest.WiringStubsConfig.class
+})
 class ProjectPersistenceIntegrationTest {
+
+  /** 串联出站换成记录型假件：本测试验的是表，不验编排侧与会话侧连不连得上（那是真派发那一步的事）。 */
+  @TestConfiguration
+  static class WiringStubsConfig {
+    @Bean
+    @Primary
+    FloorplanVisualsGateway recordingVisualsGateway() {
+      return new RecordingVisualsGateway();
+    }
+
+    @Bean
+    @Primary
+    DeliverablesPresenter recordingDeliverablesPresenter() {
+      return new RecordingDeliverablesPresenter();
+    }
+  }
 
   @DynamicPropertySource
   static void postgresProperties(DynamicPropertyRegistry registry) {
@@ -57,30 +83,28 @@ class ProjectPersistenceIntegrationTest {
   @Autowired RevisionLogRepository revisionLogRepository;
   @Autowired DecisionRepository decisionRepository;
 
-  /** 全链路对表：建项 + 五个 M0 槽位 → 迁 M0.5 → on_enter 建任务，全部真相可从 PG 读回。 */
+  /** 全链路对表：建项 + 两个 M0 槽位 → 迁 M0.5 → on_enter 建任务，全部真相可从 PG 读回。 */
   @Test
   void milestoneFlowPersistsTruthInTables() {
     ProjectCreatedResult created =
         projectAppService.createProject(new ProjectCreateCommand("u-it-1", null, "v1"));
     String projectId = created.projectId();
 
-    fill(projectId, "floorplan", "estate-fp-001");
-    fill(projectId, "usable_area_sqm", "89");
-    fill(projectId, "city", "杭州");
-    fill(projectId, "budget_range_cents", "20000000-30000000");
-    fill(projectId, "family_structure", "三口之家");
+    fill(projectId, "floorplan", "uploads/" + "b".repeat(64) + "/original.png");
+    fill(projectId, "building_area_sqm", "138");
 
     Project reloaded = projectRepository.getById(projectId);
     assertEquals("M0.5", reloaded.currentMilestone());
 
     List<Slot> slots = slotRepository.listByProjectId(projectId);
-    assertEquals(5, slots.size());
+    assertEquals(2, slots.size());
     assertTrue(slots.stream().allMatch(slot -> slot.cognitiveState() == CognitiveState.OBSERVED));
 
     List<GenerationTask> tasks = generationTaskRepository.listByProjectId(projectId);
     assertEquals(1, tasks.size());
     assertEquals("vision_image", tasks.get(0).taskType());
-    assertEquals(GenerationTaskStatus.PENDING, tasks.get(0).status());
+    // 派发（假网关）成功 → RUNNING；回流前不会有产物
+    assertEquals(GenerationTaskStatus.RUNNING, tasks.get(0).status());
 
     List<Decision> decisions = decisionRepository.listByProjectId(projectId);
     assertEquals(

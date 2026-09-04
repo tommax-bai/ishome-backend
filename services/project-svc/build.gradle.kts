@@ -7,6 +7,9 @@ description =
         "修订预算判定、流程定义权威分发。不理解自然语言（无任何 NLP/LLM 依赖）；支付与权益归 trade-svc"
 
 dependencies {
+    // contracts 生成代码：DesignService.PresentDeliverables 出站 stub（产物呈现那一跳，2026-09-04 接线）
+    implementation(project(":shared:contracts"))
+    implementation(libs.grpc.netty.shaded)
     // 私有产物签名链接：册在 OSS 私有桶里，业主靠签名链接打开（裁决 2026-08-30 晚）。
     // **只在本服务用**——签名是"给谁看、看多久"的事，属业务侧；生成侧只写不签。
     // 用官方 SDK 不自己拼签名：签错的形态是"每一份报告的链接都打不开"，

@@ -26,6 +26,15 @@ public class ProcessDefinitionRepositoryImpl implements ProcessDefinitionReposit
   /** 产物类型 key（数据值；delivery_set 对齐 contracts glossary "交付图集"）。 */
   static final String ARTIFACT_VISION_IMAGE = "vision_image";
 
+  /**
+   * 愿景图＝三张免费图（用户裁决 2026-08-31 排期改判 / 2026-09-01 三张图形态拍定）：情绪图、功能说明图、手账写字版风格图。 任务类型仍叫
+   * vision_image（一次派发出三张），三件产物各自登记、三件都送达才算 M0.5 完成。
+   */
+  static final String ARTIFACT_VISION_MOOD_IMAGE = "vision_mood_image";
+
+  static final String ARTIFACT_VISION_BRIEF_IMAGE = "vision_brief_image";
+  static final String ARTIFACT_VISION_STYLE_IMAGE = "vision_style_image";
+
   static final String ARTIFACT_LAYOUT_PLAN = "layout_plan";
   static final String ARTIFACT_SPACE_RENDER = "space_render";
   static final String ARTIFACT_CAD_DRAFT = "cad_draft";
@@ -53,26 +62,27 @@ public class ProcessDefinitionRepositoryImpl implements ProcessDefinitionReposit
             milestoneM6()));
   }
 
-  /** M0 建档：户型图已传 + 面积/城市/预算区间/家庭结构槽位齐（任一认知状态，已填即可）。 */
+  /**
+   * M0 建档：业主开头只给两样——**建筑面积 + 户型图**（用户裁决 2026-08-31："用户需要给我们东西只有两个"）； 得房率、人数、装修倾向由会话侧代码从面积推，作
+   * INFERRED 槽位随事实一起报来，**不在判据里**。 城市 / 预算 / 家庭结构降为可选槽位（业主主动说了就记，不问不等）。
+   */
   private static MilestoneDefinition milestoneM0() {
     return new MilestoneDefinition(
         "M0",
         "建档",
         null,
         List.of(
-            new SlotDefinition("floorplan", "floorplan_ref", "户型图：户型库命中（优先）或用户上传解析（兜底）", List.of()),
-            new SlotDefinition("usable_area_sqm", "number", "使用面积，平方米", List.of()),
-            new SlotDefinition("city", "text", "所在城市", List.of()),
-            new SlotDefinition("budget_range_cents", "range", "装修预算区间，金额以分计", List.of()),
-            new SlotDefinition("family_structure", "text", "家庭结构（几口人/有无老人小孩宠物）", List.of())),
+            new SlotDefinition(
+                "floorplan", "floorplan_ref", "户型图：用户上传（私有桶对象键）；户型库命中排最后", List.of()),
+            new SlotDefinition("building_area_sqm", "number", "建筑面积，平方米（业主一句话给的那个数）", List.of()),
+            new SlotDefinition(
+                "floor_area_ratio_percent", "number", "得房率百分数（未给则由会话侧按面积推）", List.of()),
+            new SlotDefinition("city", "text", "所在城市（可选）", List.of()),
+            new SlotDefinition("budget_range_cents", "range", "装修预算区间，金额以分计（可选）", List.of()),
+            new SlotDefinition("family_structure", "text", "家庭结构（可选；未给按面积推人数）", List.of())),
         List.of("ask_to_collect", "explain", "clarify", "soothe_slow_down"),
         new CompletionCriteria(
-            List.of(
-                SlotCriterion.filled("floorplan"),
-                SlotCriterion.filled("usable_area_sqm"),
-                SlotCriterion.filled("city"),
-                SlotCriterion.filled("budget_range_cents"),
-                SlotCriterion.filled("family_structure")),
+            List.of(SlotCriterion.filled("floorplan"), SlotCriterion.filled("building_area_sqm")),
             List.of()),
         List.of(),
         null);
@@ -87,7 +97,11 @@ public class ProcessDefinitionRepositoryImpl implements ProcessDefinitionReposit
         List.of(),
         List.of("present_artifact", "explain", "soothe_slow_down"),
         new CompletionCriteria(
-            List.of(), List.of(ArtifactCriterion.presented(ARTIFACT_VISION_IMAGE))),
+            List.of(),
+            List.of(
+                ArtifactCriterion.presented(ARTIFACT_VISION_MOOD_IMAGE),
+                ArtifactCriterion.presented(ARTIFACT_VISION_BRIEF_IMAGE),
+                ArtifactCriterion.presented(ARTIFACT_VISION_STYLE_IMAGE))),
         List.of(OnEnterAction.createTask(ARTIFACT_VISION_IMAGE)),
         null);
   }

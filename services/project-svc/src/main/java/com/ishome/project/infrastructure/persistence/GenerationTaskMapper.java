@@ -12,4 +12,7 @@ public interface GenerationTaskMapper extends BaseMapper<GenerationTaskPO> {
 
   @Select("SELECT * FROM generation_tasks WHERE project_id = #{projectId} AND deleted_at IS NULL")
   List<GenerationTaskPO> listActiveByProjectId(@Param("projectId") String projectId);
+
+  @Select("SELECT * FROM generation_tasks WHERE id = #{taskId} AND deleted_at IS NULL")
+  GenerationTaskPO findActiveById(@Param("taskId") String taskId);
 }

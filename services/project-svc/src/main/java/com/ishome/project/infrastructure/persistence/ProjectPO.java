@@ -17,6 +17,9 @@ public class ProjectPO {
   private String processVersion;
   private String currentMilestone;
   private String status;
+  private String ownerChannelType;
+  private String ownerChannelInstance;
+  private String ownerExternalUserId;
   private OffsetDateTime updatedAt;
 
   public String getId() {
@@ -73,5 +76,29 @@ public class ProjectPO {
 
   public void setUpdatedAt(OffsetDateTime updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public String getOwnerChannelType() {
+    return ownerChannelType;
+  }
+
+  public void setOwnerChannelType(String ownerChannelType) {
+    this.ownerChannelType = ownerChannelType;
+  }
+
+  public String getOwnerChannelInstance() {
+    return ownerChannelInstance;
+  }
+
+  public void setOwnerChannelInstance(String ownerChannelInstance) {
+    this.ownerChannelInstance = ownerChannelInstance;
+  }
+
+  public String getOwnerExternalUserId() {
+    return ownerExternalUserId;
+  }
+
+  public void setOwnerExternalUserId(String ownerExternalUserId) {
+    this.ownerExternalUserId = ownerExternalUserId;
   }
 }

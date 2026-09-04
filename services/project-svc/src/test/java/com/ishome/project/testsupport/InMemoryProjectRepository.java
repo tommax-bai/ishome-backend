@@ -1,6 +1,8 @@
 package com.ishome.project.testsupport;
 
 import com.ishome.project.domain.Project;
+import com.ishome.project.domain.ProjectOwner;
+import com.ishome.project.domain.ProjectStatus;
 import com.ishome.project.domain.port.ProjectRepository;
 import java.util.Map;
 import java.util.Optional;
@@ -19,5 +21,12 @@ public class InMemoryProjectRepository implements ProjectRepository {
   @Override
   public Optional<Project> findById(String projectId) {
     return Optional.ofNullable(store.get(projectId));
+  }
+
+  @Override
+  public Optional<Project> findActiveByOwner(ProjectOwner owner) {
+    return store.values().stream()
+        .filter(p -> p.status() == ProjectStatus.ACTIVE && owner.equals(p.owner()))
+        .findFirst();
   }
 }
