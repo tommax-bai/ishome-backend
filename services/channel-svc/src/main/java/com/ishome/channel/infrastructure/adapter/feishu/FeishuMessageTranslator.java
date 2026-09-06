@@ -91,8 +91,66 @@ final class FeishuMessageTranslator {
                           .setMimeType(uploadedImage.get().mimeType())
                           .build())
                   .build());
+      // 富文本（业主把图和"138平米"一句话一起发就是这个类型）：本条只承载图，
+      // 那句话由调用方作为第二条文本消息中继——统一模型的 content 是 oneof，一条装不下两样。
+      case "post" ->
+          uploadedImage
+              .map(
+                  image ->
+                      builder
+                          .setImage(
+                              ImageContent.newBuilder()
+                                  .setObjectKey(image.objectKey())
+                                  .setMimeType(image.mimeType())
+                                  .build())
+                          .build())
+              .or(
+                  () ->
+                      postText(content)
+                          .map(
+                              text ->
+                                  builder
+                                      .setText(TextContent.newBuilder().setText(text).build())
+                                      .build()));
       default -> Optional.empty();
     };
+  }
+
+  /**
+   * 富文本里的正文：把所有 text 段按出现顺序拼起来（飞书按行分组，行内可多段）。
+   *
+   * <p>全空返回 empty——不把空串当一条用户消息中继下去。
+   */
+  static Optional<String> inboundPostText(String msgType, String contentJson) {
+    if (!"post".equals(msgType)) {
+      return Optional.empty();
+    }
+    return postText(readJson(contentJson));
+  }
+
+  private static Optional<String> postText(JsonNode content) {
+    StringBuilder text = new StringBuilder();
+    for (JsonNode line : content.path("content")) {
+      for (JsonNode segment : line) {
+        if ("text".equals(segment.path("tag").asText())) {
+          text.append(segment.path("text").asText());
+        }
+      }
+    }
+    String joined = text.toString().trim();
+    return joined.isBlank() ? Optional.empty() : Optional.of(joined);
+  }
+
+  /**
+   * 入站：渠道侧自己拆出来的一句用户文字（富文本里的正文）→ 统一模型。
+   *
+   * <p>与 {@link #toInboundMessage} 的差别只在 message_id 由调用方给（派生 id），内容照文本消息装。
+   */
+  static UnifiedMessage toInboundText(
+      String openId, String messageId, String text, long createdAtMs) {
+    return inboundBuilder(messageId, openId, createdAtMs)
+        .setText(TextContent.newBuilder().setText(text).build())
+        .build();
   }
 
   /**
@@ -102,10 +160,26 @@ final class FeishuMessageTranslator {
    * IO，而 IO 又必须在事件 ack 之后。
    */
   static Optional<String> inboundImageKey(String msgType, String contentJson) {
+    JsonNode content = readJson(contentJson);
+    // 富文本：图在 content 数组的 img 段里；一条富文本可以没有图（纯文字排版），此时返回 empty 不是错。
+    if ("post".equals(msgType)) {
+      for (JsonNode line : content.path("content")) {
+        for (JsonNode segment : line) {
+          if ("img".equals(segment.path("tag").asText())) {
+            String key = segment.path("image_key").asText();
+            if (key.isBlank()) {
+              throw new IllegalArgumentException("飞书富文本的 img 段没有 image_key，取不到图：" + contentJson);
+            }
+            return Optional.of(key);
+          }
+        }
+      }
+      return Optional.empty();
+    }
     if (!"image".equals(msgType)) {
       return Optional.empty();
     }
-    String imageKey = readJson(contentJson).path("image_key").asText();
+    String imageKey = content.path("image_key").asText();
     if (imageKey.isBlank()) {
       throw new IllegalArgumentException("飞书图片消息没有 image_key，取不到图：" + contentJson);
     }

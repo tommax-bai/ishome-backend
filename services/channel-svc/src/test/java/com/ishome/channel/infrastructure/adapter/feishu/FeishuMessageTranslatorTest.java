@@ -94,6 +94,56 @@ class FeishuMessageTranslatorTest {
     assertTrue(FeishuMessageTranslator.inboundImageKey("text", "{\"text\":\"你好\"}").isEmpty());
   }
 
+  // 业主把户型图和"138平米"一句话一起发，飞书归为 post；真机 2026-09-06 两次被整条跳过
+  private static final String POST_CONTENT_JSON =
+      "{\"title\":\"\",\"content\":[[{\"tag\":\"img\",\"image_key\":\"img_v3_post\"}],"
+          + "[{\"tag\":\"text\",\"text\":\"138平米，81%得房率\"}]]}";
+
+  @Test
+  void readsImageKeyFromRichTextPost() {
+    assertEquals(
+        Optional.of("img_v3_post"),
+        FeishuMessageTranslator.inboundImageKey("post", POST_CONTENT_JSON));
+  }
+
+  @Test
+  void treatsRichTextPostWithoutImageAsTextOnly() {
+    String textOnly = "{\"title\":\"\",\"content\":[[{\"tag\":\"text\",\"text\":\"你好\"}]]}";
+    assertTrue(FeishuMessageTranslator.inboundImageKey("post", textOnly).isEmpty());
+    Optional<UnifiedMessage> message =
+        FeishuMessageTranslator.toInboundMessage(
+            "ou_123", "om_post_text", "post", textOnly, 0L, Optional.empty());
+    assertEquals("你好", message.orElseThrow().getText().getText());
+  }
+
+  @Test
+  void translatesRichTextPostImageAndKeepsCaptionSeparately() {
+    Optional<UnifiedMessage> message =
+        FeishuMessageTranslator.toInboundMessage(
+            "ou_123",
+            "om_post",
+            "post",
+            POST_CONTENT_JSON,
+            0L,
+            Optional.of(new UploadedImage("uploads/sha/original.png", "image/png")));
+    // 这一条只装图：统一模型 content 是 oneof，装不下两样
+    assertEquals("uploads/sha/original.png", message.orElseThrow().getImage().getObjectKey());
+    // 那句话不许被咽掉，由调用方另发一条
+    assertEquals(
+        Optional.of("138平米，81%得房率"),
+        FeishuMessageTranslator.inboundPostText("post", POST_CONTENT_JSON));
+    assertTrue(FeishuMessageTranslator.inboundPostText("image", IMAGE_CONTENT_JSON).isEmpty());
+  }
+
+  @Test
+  void relayedPostTextKeepsDerivedMessageId() {
+    UnifiedMessage message =
+        FeishuMessageTranslator.toInboundText("ou_123", "om_post:post-text", "138平米", 0L);
+    assertEquals("om_post:post-text", message.getMessageId());
+    assertEquals("138平米", message.getText().getText());
+    assertEquals(MessageDirection.MESSAGE_DIRECTION_INBOUND, message.getDirection());
+  }
+
   @Test
   void rejectsImageMessageWithoutImageKey() {
     assertThrows(

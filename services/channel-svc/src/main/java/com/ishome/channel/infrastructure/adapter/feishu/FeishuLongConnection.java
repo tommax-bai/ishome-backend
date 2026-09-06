@@ -44,6 +44,9 @@ public class FeishuLongConnection implements SmartLifecycle {
   /** 失败告知的出站 message_id 后缀：由入站 id 推得，重推时同一次失败只说一遍。 */
   private static final String IMAGE_FAILURE_ID_SUFFIX = ":image-not-received";
 
+  // 富文本拆出来那条文字的 id 后缀：与原图那条同源、可推导，重投时下游按 id 去重仍然成立。
+  private static final String POST_TEXT_ID_SUFFIX = ":post-text";
+
   private final FeishuProperties properties;
   private final InboundMessageRelay inboundMessageRelay;
   private final FeishuImageSource feishuImageSource;
@@ -172,6 +175,24 @@ public class FeishuLongConnection implements SmartLifecycle {
                     "unsupported feishu msg_type skipped: {} event={}",
                     message.getMessageType(),
                     Jsons.DEFAULT.toJson(message)));
+
+    // 富文本里图和文字同时存在时，上面那条只带走了图，那句话再单独中继一条——
+    // 统一模型的 content 是 oneof，装不下两样；丢掉文字等于把业主说的"138平米"咽了。
+    // 第二条的 id 由原 id 派生（确定性）：飞书事件重推时下游仍按同一 id 去重，不会回两遍。
+    if (uploadedImage.isPresent()) {
+      FeishuMessageTranslator.inboundPostText(message.getMessageType(), message.getContent())
+          .ifPresent(
+              text -> {
+                String textMessageId = feishuMessageId + POST_TEXT_ID_SUFFIX;
+                log.info(
+                    "inbound post text relayed separately: message_id={} text_message_id={}",
+                    feishuMessageId,
+                    textMessageId);
+                relay(
+                    FeishuMessageTranslator.toInboundText(
+                        openId, textMessageId, text, createdAtMs));
+              });
+    }
   }
 
   private void tellUser(String feishuMessageId, String openId, String text) {
