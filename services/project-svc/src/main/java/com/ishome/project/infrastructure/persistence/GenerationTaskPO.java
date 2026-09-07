@@ -18,6 +18,7 @@ public class GenerationTaskPO {
   private String status;
   private String artifactId;
   private String result;
+  private String triggerEventId;
   private OffsetDateTime updatedAt;
 
   public String getId() {
@@ -82,5 +83,13 @@ public class GenerationTaskPO {
 
   public void setResult(String result) {
     this.result = result;
+  }
+
+  public String getTriggerEventId() {
+    return triggerEventId;
+  }
+
+  public void setTriggerEventId(String triggerEventId) {
+    this.triggerEventId = triggerEventId;
   }
 }

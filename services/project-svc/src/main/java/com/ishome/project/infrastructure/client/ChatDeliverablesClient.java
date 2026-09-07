@@ -62,9 +62,9 @@ public class ChatDeliverablesClient implements DeliverablesPresenter {
               .setTaskType(presentation.taskType() == null ? "" : presentation.taskType()));
     }
     PresentDeliverablesResponse response = blockingStub.presentDeliverables(request.build());
-    // rpc 成功返回即算送到：delivered=false 只发生在重投命中幂等（上一次已经发过），
-    // 事件不该因此永远留在表里；真送不到的形态是 StatusRuntimeException，由中继按失败留待重试
-    return response.getDelivered() || !response.getDelivered();
+    // 照会话侧说的返回：delivered=false 只发生在重投命中 delivery_id 幂等（上一次已经发到业主手里了），
+    // 这一条事件仍是完成态、由中继收口；真送不到的形态是 StatusRuntimeException，中继按失败留待重试。
+    return response.getDelivered();
   }
 
   /** 注册表小写标识 → proto 枚举（认不得即失败：不许把不认识的渠道当 UNSPECIFIED 发出去）。 */

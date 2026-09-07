@@ -1,9 +1,13 @@
 package com.ishome.project;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.github.f4b6a3.ulid.UlidCreator;
+import com.ishome.project.application.GenerationTaskResultCommand;
+import com.ishome.project.application.MilestoneProgressResult;
 import com.ishome.project.application.ProjectAppService;
 import com.ishome.project.application.ProjectCreateCommand;
 import com.ishome.project.application.ProjectCreatedResult;
@@ -13,6 +17,7 @@ import com.ishome.project.domain.ArtifactStatus;
 import com.ishome.project.domain.CognitiveState;
 import com.ishome.project.domain.Decision;
 import com.ishome.project.domain.DecisionType;
+import com.ishome.project.domain.GenerationFailure;
 import com.ishome.project.domain.GenerationTask;
 import com.ishome.project.domain.GenerationTaskStatus;
 import com.ishome.project.domain.Project;
@@ -39,6 +44,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -114,6 +120,70 @@ class ProjectPersistenceIntegrationTest {
             .count());
   }
 
+  /**
+   * 补派对表（用户裁决 2026-09-07）：图没出来、业主重发一张户型图 → 铸新号并派发，旧那条 FAILED 原样留着；
+   * 在途唯一索引（V7）当场拒掉同项目同类的第二个在途任务——补派放开之后，隐式幂等换成库里这条约束。
+   */
+  @Test
+  void redispatchAfterFailureMintsNewTaskAndInflightUniquenessHolds() {
+    String projectId =
+        projectAppService.createProject(new ProjectCreateCommand("u-it-2", null, "v1")).projectId();
+    projectAppService.fillSlots(
+        projectId,
+        List.of(
+            slotFilled(
+                projectId, "floorplan", "uploads/" + "f".repeat(64) + "/original.png", "e-a"),
+            slotFilled(projectId, "building_area_sqm", "138", "e-a")));
+
+    List<GenerationTask> afterFirst = generationTaskRepository.listByProjectId(projectId);
+    assertEquals(1, afterFirst.size());
+    String firstTaskId = afterFirst.get(0).id();
+    assertEquals("e-a", afterFirst.get(0).triggerEventId());
+    assertEquals(GenerationTaskStatus.RUNNING, afterFirst.get(0).status());
+
+    // 在途唯一：同项目同类任务再来一个 PENDING，库直接拒（兜住并发补派）
+    GenerationTask secondInFlight =
+        new GenerationTask(
+            UlidCreator.getUlid().toString(),
+            projectId,
+            "vision_image",
+            "{}",
+            GenerationTaskStatus.PENDING,
+            null,
+            null,
+            "e-x");
+    assertThrows(
+        DataIntegrityViolationException.class, () -> generationTaskRepository.save(secondInFlight));
+
+    // 几何校验错回流 → FAILED
+    projectAppService.receiveGenerationTaskResult(
+        new GenerationTaskResultCommand(
+            firstTaskId,
+            GenerationTaskResultCommand.STATUS_FAILED,
+            List.of(),
+            new GenerationFailure("plan-2d-render", "外圈闭合率 64%"),
+            "wf-it",
+            "run-it"));
+
+    MilestoneProgressResult progress =
+        projectAppService.fillSlots(
+            projectId,
+            List.of(
+                slotFilled(
+                    projectId, "floorplan", "uploads/" + "g".repeat(64) + "/original.png", "e-b")));
+
+    assertEquals(1, progress.createdTaskIds().size());
+    String secondTaskId = progress.createdTaskIds().get(0);
+    assertNotEquals(firstTaskId, secondTaskId);
+    // 重跑不是重试：新号在途，旧那条 FAILED 一个字节不动
+    assertEquals(
+        GenerationTaskStatus.RUNNING, generationTaskRepository.getById(secondTaskId).status());
+    assertEquals("e-b", generationTaskRepository.getById(secondTaskId).triggerEventId());
+    assertEquals(
+        GenerationTaskStatus.FAILED, generationTaskRepository.getById(firstTaskId).status());
+    assertEquals(2, generationTaskRepository.listByProjectId(projectId).size());
+  }
+
   /** 槽位 (project_id, slot_key) upsert：后写覆盖前写，唯一键不重复成行。 */
   @Test
   void slotUpsertKeepsSingleRowPerKey() {
@@ -181,5 +251,11 @@ class ProjectPersistenceIntegrationTest {
     projectAppService.fillSlot(
         new SlotFilledCommand(
             projectId, slotKey, value, CognitiveState.OBSERVED, "evt-" + slotKey, 0.95));
+  }
+
+  private static SlotFilledCommand slotFilled(
+      String projectId, String slotKey, String value, String sourceEventId) {
+    return new SlotFilledCommand(
+        projectId, slotKey, value, CognitiveState.OBSERVED, sourceEventId, 0.95);
   }
 }

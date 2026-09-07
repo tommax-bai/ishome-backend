@@ -51,6 +51,7 @@ public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
     po.setStatus(task.status().name());
     po.setArtifactId(task.artifactId());
     po.setResult(task.result());
+    po.setTriggerEventId(task.triggerEventId());
     return po;
   }
 
@@ -62,6 +63,7 @@ public class GenerationTaskRepositoryImpl implements GenerationTaskRepository {
         po.getInputSnapshot(),
         GenerationTaskStatus.valueOf(po.getStatus()),
         po.getArtifactId(),
-        po.getResult());
+        po.getResult(),
+        po.getTriggerEventId());
   }
 }

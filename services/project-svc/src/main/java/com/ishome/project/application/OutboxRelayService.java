@@ -23,7 +23,8 @@ import org.springframework.stereotype.Service;
  * <p>总线（RocketMQ）接入前，中继直接调会话侧 rpc（{@link DeliverablesPresenter}）；接入后本类改为发总线、 chat
  * 订阅——换的是这一处实现，事件不换名、写事件的那一侧不动。
  *
- * <p>一次一批、逐条投递；投递成功才标已发布，失败留在表里等下一轮（重投由会话侧按 delivery_id 幂等）。 网络调用在事务外——中继不该拿着数据库锁去等 gRPC。
+ * <p>一次一批、逐条投递；送到（含会话侧按 delivery_id 幂等跳过——上一次已经发到业主手里了）就标已发布， 抛异常才留在表里等下一轮。网络调用在事务外——中继不该拿着数据库锁去等
+ * gRPC。
  */
 @Service
 public class OutboxRelayService {
@@ -85,9 +86,16 @@ public class OutboxRelayService {
       outboxRepository.markPublished(event.id());
       return false;
     }
-    boolean delivered = deliverablesPresenter.present(presentation);
-    if (!delivered) {
-      return false;
+    boolean deliveredNow = deliverablesPresenter.present(presentation);
+    if (!deliveredNow) {
+      // 会话侧按 delivery_id 幂等跳过——上一次已经发到业主手里了（契约 PresentDeliverablesResponse.delivered
+      // 只在这一种情形为 false）。它是完成态不是失败态：照样收口并置 PRESENTED，
+      // 否则每一轮都再问一次、永远问下去，而图明明已经在业主那儿了、里程碑却一直卡着。
+      // 真送不到的形态是 rpc 抛异常，由 relayBatch 接住留待重试。
+      log.info(
+          "会话侧按幂等跳过（上一次已发到业主手里），事件照已投递收口：id={} delivery_id={}",
+          event.id(),
+          presentation.deliveryId());
     }
     if (!presentation.deliverables().isEmpty()) {
       projectAppService.markDeliverablesPresented(
@@ -95,7 +103,7 @@ public class OutboxRelayService {
           presentation.deliverables().stream().map(PresentedDeliverable::artifactId).toList());
     }
     outboxRepository.markPublished(event.id());
-    return true;
+    return deliveredNow;
   }
 
   private DeliverablesPresentation toPresentation(OutboxEvent event)

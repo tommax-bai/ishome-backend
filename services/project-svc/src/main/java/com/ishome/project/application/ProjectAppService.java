@@ -21,6 +21,7 @@ import com.ishome.project.domain.RevisionLog;
 import com.ishome.project.domain.Slot;
 import com.ishome.project.domain.definition.MilestoneDefinition;
 import com.ishome.project.domain.definition.OnEnterAction;
+import com.ishome.project.domain.definition.OnEnterActionType;
 import com.ishome.project.domain.definition.ProcessDefinition;
 import com.ishome.project.domain.definition.RevisionRule;
 import com.ishome.project.domain.port.ArtifactRepository;
@@ -40,6 +41,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,10 +153,15 @@ public class ProjectAppService {
 
   /**
    * 一批 slot_filled 同事务落完再判一次里程碑——面积与户型图常在同一轮到齐，逐条判会把一次迁移拆成两次半截的。 户型图槽位同时回写项目的 floorplanRef（私有桶对象键）。
+   *
+   * <p>没有迁移、而业主重发了一张户型图时补派：见 {@link #redispatchOnResentFloorplan}。
    */
   @Transactional
   public MilestoneProgressResult fillSlots(String projectId, List<SlotFilledCommand> commands) {
     Project project = projectRepository.getById(projectId);
+    String priorFloorplanEventId =
+        slotSourceEventId(slotRepository.listByProjectId(projectId), SLOT_FLOORPLAN).orElse(null);
+    String floorplanEventId = null;
     for (SlotFilledCommand command : commands) {
       if (!projectId.equals(command.projectId())) {
         throw new IllegalArgumentException("槽位不属于本项目：" + command.slotKey());
@@ -171,9 +178,16 @@ public class ProjectAppService {
       if (SLOT_FLOORPLAN.equals(command.slotKey()) && command.value() != null) {
         project = project.withFloorplanRef(command.value());
         projectRepository.save(project);
+        // 一批里多条户型图时以最后一条为准——与槽位 upsert 的"后写覆盖前写"同口径
+        floorplanEventId = command.sourceEventId();
       }
     }
-    return advanceMilestones(project);
+    MilestoneProgressResult progress = advanceMilestones(project, floorplanEventId);
+    if (progress.transitioned()) {
+      return progress;
+    }
+    return progress.withAdditionalTaskIds(
+        redispatchOnResentFloorplan(project, priorFloorplanEventId, floorplanEventId));
   }
 
   /** 产物登记（genpipe 完成 / chat 送达）：登记落库 → checkCompletion（如 M0.5 送达即迁移）。 */
@@ -241,15 +255,17 @@ public class ProjectAppService {
             new PresentedDeliverable(artifact.id(), artifactType, product.objectKey(), ""));
       }
     }
+    // 编排侧说成功、却一件该送的都没有：对业主而言等于没做出来，任务就记 FAILED——
+    // 库里写 COMPLETED、同时告诉业主失败，是"状态和说的话相反"；且 isSettled 之后编排侧真跑成了也塞不回来。
+    // 记 FAILED 还让补派接管得了它（业主重发一张图就再来一次）。半成品产物已登记，血缘留着不删。
+    GenerationTaskStatus settledStatus =
+        deliverables.isEmpty() ? GenerationTaskStatus.FAILED : GenerationTaskStatus.COMPLETED;
     generationTaskRepository.save(
         task.withResult(
-            GenerationTaskStatus.COMPLETED,
-            artifactIds.isEmpty() ? null : artifactIds.get(0),
-            resultJson));
+            settledStatus, artifactIds.isEmpty() ? null : artifactIds.get(0), resultJson));
     advanceMilestones(project);
 
     if (deliverables.isEmpty()) {
-      // 编排侧说成功、却一件该送的都没有：对业主而言等于没做出来，按失败告知
       recordTaskFailed(
           project, task, new GenerationFailure("no-deliverables", "编排侧回了 completed，但没有一张该送给业主的图"));
     } else {
@@ -327,7 +343,8 @@ public class ProjectAppService {
                     command.artifactId(),
                     directive.target(),
                     directive.dimension(),
-                    directive.direction()));
+                    directive.direction()),
+            command.sourceEventId());
     revisionLogRepository.save(
         new RevisionLog(project.id(), milestone.id(), roundNo, directive, taskId));
     return new RevisionResult(false, roundNo, rule.budgetRounds(), taskId);
@@ -359,14 +376,20 @@ public class ProjectAppService {
         processDefinitionRepository.getByVersion(project.processVersion());
     MilestoneDefinition first = definition.firstMilestone();
     recordMilestoneEnter(project, first.id(), null);
-    return executeOnEnterActions(project, first.onEnterActions());
+    return executeOnEnterActions(project, first.onEnterActions(), null);
+  }
+
+  private MilestoneProgressResult advanceMilestones(Project project) {
+    return advanceMilestones(project, null);
   }
 
   /**
    * 里程碑引擎推进：循环 checkCompletion 直到判据不满足（一次事实可连迁多个里程碑， 如机会性抽取把后续里程碑槽位提前补齐）。每次迁移：落库 → 记
    * MILESTONE_ENTER → 执行 on_enter。
+   *
+   * <p>{@code triggerEventId} 为触发这一轮的渠道事件 id（有则记进任务，作"同一条渠道消息不铸第二个任务"的判据）。
    */
-  private MilestoneProgressResult advanceMilestones(Project project) {
+  private MilestoneProgressResult advanceMilestones(Project project, String triggerEventId) {
     ProcessDefinition definition =
         processDefinitionRepository.getByVersion(project.processVersion());
     List<String> enteredMilestones = new ArrayList<>();
@@ -387,7 +410,8 @@ public class ProjectAppService {
       recordMilestoneEnter(
           current, transition.get().toMilestoneId(), transition.get().fromMilestoneId());
       enteredMilestones.add(transition.get().toMilestoneId());
-      createdTaskIds.addAll(executeOnEnterActions(current, transition.get().onEnterActions()));
+      createdTaskIds.addAll(
+          executeOnEnterActions(current, transition.get().onEnterActions(), triggerEventId));
     }
     return new MilestoneProgressResult(
         current.id(),
@@ -402,7 +426,8 @@ public class ProjectAppService {
    *
    * <p>派发失败不回滚事实与迁移（槽位是真的、里程碑也真到了），任务记 FAILED 并写失败事件让业主知道—— 挂在 PENDING 上等一个不会来的回流才是最坏的形态。
    */
-  private List<String> executeOnEnterActions(Project project, List<OnEnterAction> actions) {
+  private List<String> executeOnEnterActions(
+      Project project, List<OnEnterAction> actions, String triggerEventId) {
     List<String> createdTaskIds = new ArrayList<>();
     for (OnEnterAction action : actions) {
       switch (action.type()) {
@@ -412,7 +437,8 @@ public class ProjectAppService {
               createGenerationTask(
                   project,
                   taskType,
-                  "{\"milestone\":\"%s\"}".formatted(project.currentMilestone()));
+                  "{\"milestone\":\"%s\"}".formatted(project.currentMilestone()),
+                  triggerEventId);
           createdTaskIds.add(taskId);
           if (TASK_TYPE_VISION_IMAGE.equals(taskType)) {
             dispatchFloorplanVisuals(project, taskId);
@@ -421,6 +447,68 @@ public class ProjectAppService {
       }
     }
     return createdTaskIds;
+  }
+
+  /**
+   * 补派：图没出来、业主又发了一张户型图，就再来一次（用户裁决 2026-09-07："好，重发一张图的话，就再来一次。"）。
+   *
+   * <p>为什么需要：on_enter（铸任务 + 派发）挂在**迁移这条边**上。项目停在 M0.5、三件产物一件都没 PRESENTED 时， M0.5
+   * 自己的判据不满足、不再有迁移，于是永远不再派发——业主换一张全新的图也一样，因为原路径只看有没有迁移、 不看图变没变。补派把射程限定在"该出的图没出来"这一段。
+   *
+   * <p>三个条件全满足才铸（缺一不铸）：①当前里程碑的 on_enter 里有 CREATE_TASK；②该 task_type 在本项目下现有任务全 FAILED 或一条都没有；③没有任务的
+   * trigger_event_id 等于本次这条渠道事件 id。 条件②同时管三件事：业主等不及连发三张图只跑一次、跑成功过的不重烧算力、图出来之后里程碑已迁走 （M1 的 on_enter
+   * 是空的）补派条件天然不成立。
+   *
+   * <p>铸的是**新任务号**（重跑不是重试，对齐用户裁决 2026-09-06《几何重跑当作新的一轮》）：那条 FAILED 的一个字节不动，它是证据。
+   */
+  private List<String> redispatchOnResentFloorplan(
+      Project project, String priorFloorplanEventId, String floorplanEventId) {
+    if (floorplanEventId == null || floorplanEventId.equals(priorFloorplanEventId)) {
+      // 本批没有户型图，或还是上一条消息那张（chat 重投同一条事实）——都不算"业主重发一张图"
+      return List.of();
+    }
+    ProcessDefinition definition =
+        processDefinitionRepository.getByVersion(project.processVersion());
+    MilestoneDefinition milestone = getMilestone(definition, project.currentMilestone());
+    List<GenerationTask> existingTasks = generationTaskRepository.listByProjectId(project.id());
+    if (existingTasks.stream().anyMatch(task -> floorplanEventId.equals(task.triggerEventId()))) {
+      // 条件③：同一条渠道消息已经铸过任务了
+      return List.of();
+    }
+    List<String> createdTaskIds = new ArrayList<>();
+    for (OnEnterAction action : milestone.onEnterActions()) {
+      if (action.type() != OnEnterActionType.CREATE_TASK) {
+        continue;
+      }
+      String taskType = action.params().get(OnEnterAction.PARAM_TASK_TYPE);
+      if (!allAttemptsFailed(existingTasks, taskType)) {
+        continue;
+      }
+      log.info(
+          "图没出来、业主重发了户型图，补派一轮：project={} milestone={} task_type={} event={}",
+          project.id(),
+          milestone.id(),
+          taskType,
+          floorplanEventId);
+      String taskId =
+          createGenerationTask(
+              project,
+              taskType,
+              "{\"milestone\":\"%s\",\"redispatch\":true}".formatted(project.currentMilestone()),
+              floorplanEventId);
+      createdTaskIds.add(taskId);
+      if (TASK_TYPE_VISION_IMAGE.equals(taskType)) {
+        dispatchFloorplanVisuals(project, taskId);
+      }
+    }
+    return createdTaskIds;
+  }
+
+  /** 条件②：该 task_type 在本项目下现有任务全是 FAILED，或者一条都没有。 */
+  private static boolean allAttemptsFailed(List<GenerationTask> tasks, String taskType) {
+    return tasks.stream()
+        .filter(task -> task.taskType().equals(taskType))
+        .allMatch(task -> task.status() == GenerationTaskStatus.FAILED);
   }
 
   private void dispatchFloorplanVisuals(Project project, String taskId) {
@@ -461,7 +549,8 @@ public class ProjectAppService {
     recordTaskFailed(project, task, failure);
   }
 
-  private String createGenerationTask(Project project, String taskType, String inputPayload) {
+  private String createGenerationTask(
+      Project project, String taskType, String inputPayload, String triggerEventId) {
     String taskId = newId();
     generationTaskRepository.save(
         new GenerationTask(
@@ -471,7 +560,9 @@ public class ProjectAppService {
             "{\"project_id\":\"%s\",\"task_type\":\"%s\",\"input\":%s}"
                 .formatted(project.id(), taskType, inputPayload),
             GenerationTaskStatus.PENDING,
-            null));
+            null,
+            null,
+            triggerEventId));
     return taskId;
   }
 
@@ -629,6 +720,15 @@ public class ProjectAppService {
     return slots.stream()
         .filter(slot -> slotKey.equals(slot.slotKey()))
         .map(Slot::value)
+        .findFirst();
+  }
+
+  /** 槽位当前那行是哪条渠道事件写的（槽位按 (project_id, slot_key) upsert，故至多一行）。 */
+  private static Optional<String> slotSourceEventId(List<Slot> slots, String slotKey) {
+    return slots.stream()
+        .filter(slot -> slotKey.equals(slot.slotKey()))
+        .map(Slot::sourceEventId)
+        .filter(Objects::nonNull)
         .findFirst();
   }
 

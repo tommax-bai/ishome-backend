@@ -76,14 +76,34 @@ class OutboxRelayServiceTest {
   }
 
   @Test
-  void undeliveredEventStaysForNextRound() {
+  void idempotentSkipIsSettledNotRetriedForever() {
+    // 会话侧按 delivery_id 幂等跳过（上一次已经发到业主手里了）：本轮没发出去，但这条事件是完成态
     fixture.presenter.delivering(false);
+
+    assertEquals(0, fixture.outboxRelayService.relayBatch());
+
+    OutboxEvent event = fixture.outboxRepository.all().get(0);
+    assertTrue(fixture.outboxRepository.isPublished(event.id()));
+    // 图既然已经在业主那儿，里程碑就该往前走；不收口的话每一轮都再问一次会话侧、永远问下去
+    assertEquals("M1", fixture.projectRepository.getById(projectId).currentMilestone());
+    assertEquals(0, fixture.outboxRelayService.relayBatch());
+  }
+
+  @Test
+  void undeliveredEventStaysForNextRound() {
+    // 真送不到的形态是 rpc 抛异常：事件留在表里等下一轮
+    fixture.presenter.throwing(true);
 
     assertEquals(0, fixture.outboxRelayService.relayBatch());
 
     OutboxEvent event = fixture.outboxRepository.all().get(0);
     assertFalse(fixture.outboxRepository.isPublished(event.id()));
     assertEquals("M0.5", fixture.projectRepository.getById(projectId).currentMilestone());
+
+    fixture.presenter.throwing(false);
+    assertEquals(1, fixture.outboxRelayService.relayBatch());
+    assertTrue(fixture.outboxRepository.isPublished(event.id()));
+    assertEquals("M1", fixture.projectRepository.getById(projectId).currentMilestone());
   }
 
   @Test
