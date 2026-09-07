@@ -21,10 +21,13 @@ import com.ishome.project.domain.GenerationTask;
 import com.ishome.project.domain.GenerationTaskStatus;
 import com.ishome.project.domain.OutboxEvent;
 import com.ishome.project.domain.ProjectOwner;
+import com.ishome.project.domain.Slot;
 import com.ishome.project.domain.port.FloorplanVisualsDispatch;
 import com.ishome.project.testsupport.WiringFixture;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +59,30 @@ class WiringFlowTest {
     assertEquals(first.projectId(), second.projectId());
     assertEquals("M0", first.currentMilestone());
     assertEquals("v1", first.processVersion());
+    assertTrue(first.slots().isEmpty());
     assertEquals(OWNER, fixture.projectRepository.getById(first.projectId()).owner());
+  }
+
+  @Test
+  void findOrCreateCarriesExistingSlotsBackSoChatNeedNotAskAgain() {
+    // 会话侧重启后按属主再问一次：业主 2026-09-06 给过的面积必须原样回去，
+    // 否则它算"还缺什么"时会把已经答过的又问一遍（9-07 真机）
+    String projectId = fixture.projectAppService.findOrCreateProject(OWNER, null).projectId();
+    fixture.projectAppService.fillSlots(
+        projectId,
+        List.of(
+            slot(projectId, "building_area_sqm", "138", CognitiveState.OBSERVED),
+            slot(projectId, "floor_area_ratio_percent", "81", CognitiveState.OBSERVED)));
+
+    ProjectFindOrCreateResult again = fixture.projectAppService.findOrCreateProject(OWNER, null);
+
+    assertFalse(again.created());
+    assertEquals(projectId, again.projectId());
+    Map<String, Slot> byKey =
+        again.slots().stream().collect(Collectors.toMap(Slot::slotKey, slot -> slot));
+    assertEquals(Set.of("building_area_sqm", "floor_area_ratio_percent"), byKey.keySet());
+    assertEquals("138", byKey.get("building_area_sqm").value());
+    assertEquals(CognitiveState.OBSERVED, byKey.get("building_area_sqm").cognitiveState());
   }
 
   @Test

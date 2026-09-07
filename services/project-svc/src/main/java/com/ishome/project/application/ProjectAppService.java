@@ -125,9 +125,12 @@ public class ProjectAppService {
   }
 
   /**
-   * 按会话属主取项目，没有就建（幂等：同一属主至多一个进行中的项目）。
+   * 按会话属主取项目，没有就建（幂等：同一属主至多一个进行中的项目），并带回项目上已有的全部槽位。
    *
    * <p>会话侧只知道属主三元组；项目 id 由本服务铸，回给会话侧缓存。identity 归一前 userId 以渠道侧用户标识占位。
+   *
+   * <p>槽位一并回去，是因为这是会话侧在这条链路上唯一的读面：会话态只活在会话侧进程里、重启即失，而槽位真相一直在本服务的表里 （2026-09-06 业主给过的建筑面积，9-07
+   * 重启后又被问了一遍）。新建的项目当然还没有槽位，回空列表。
    */
   @Transactional
   public ProjectFindOrCreateResult findOrCreateProject(ProjectOwner owner, String processVersion) {
@@ -135,14 +138,18 @@ public class ProjectAppService {
     if (existing.isPresent()) {
       Project project = existing.get();
       return new ProjectFindOrCreateResult(
-          project.id(), project.currentMilestone(), project.processVersion(), false);
+          project.id(),
+          project.currentMilestone(),
+          project.processVersion(),
+          false,
+          slotRepository.listByProjectId(project.id()));
     }
     String version =
         processVersion == null || processVersion.isBlank() ? defaultProcessVersion : processVersion;
     Project project = newProject(owner.externalUserId(), null, version, owner);
     enterFirstMilestone(project);
     return new ProjectFindOrCreateResult(
-        project.id(), project.currentMilestone(), project.processVersion(), true);
+        project.id(), project.currentMilestone(), project.processVersion(), true, List.of());
   }
 
   /** 业务事实 slot_filled：槽位落库（真相在表）→ checkCompletion → 判据满足则迁移。 */

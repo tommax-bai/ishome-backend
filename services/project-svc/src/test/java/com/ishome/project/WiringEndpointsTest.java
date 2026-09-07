@@ -59,7 +59,9 @@ class WiringEndpointsTest {
             post("/api/v1/projects").contentType(MediaType.APPLICATION_JSON).content(OWNER_JSON))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.created").value(false))
-        .andExpect(jsonPath("$.project_id").value(projectId));
+        .andExpect(jsonPath("$.project_id").value(projectId))
+        // 还没报过事实：槽位是空数组，不是缺字段
+        .andExpect(jsonPath("$.slots.length()").value(0));
 
     MvcResult filled =
         mockMvc
@@ -108,6 +110,50 @@ class WiringEndpointsTest {
                 .content("{\"status\":\"completed\",\"products\":[]}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.duplicate").value(true));
+  }
+
+  @Test
+  void findOrCreateResponseCarriesExistingSlotsInLowercaseVocabulary() throws Exception {
+    // 会话侧重启后就靠这一跳把"业主已经给过什么"读回来（9-07 真机：面积被问了第二遍）
+    MvcResult created =
+        mockMvc
+            .perform(
+                post("/api/v1/projects")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(OWNER_JSON))
+            .andExpect(status().isOk())
+            .andReturn();
+    String projectId =
+        fixture
+            .objectMapper
+            .readTree(created.getResponse().getContentAsString())
+            .get("project_id")
+            .asText();
+    mockMvc
+        .perform(
+            post("/api/v1/projects/" + projectId + "/slots")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"slots":[
+                      {"slot_key":"building_area_sqm","value":"138","cognitive_state":"observed","source_event_id":"m2","confidence":0.9},
+                      {"slot_key":"floor_area_ratio_percent","value":"81","cognitive_state":"observed"}
+                    ]}
+                    """))
+        .andExpect(status().isOk());
+
+    mockMvc
+        .perform(
+            post("/api/v1/projects").contentType(MediaType.APPLICATION_JSON).content(OWNER_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.slots.length()").value(2))
+        .andExpect(jsonPath("$.slots[?(@.slot_key == 'building_area_sqm')].value").value("138"))
+        // 六值词表出去是小写（Java 与 DB 里是 UPPER_SNAKE，契约上是小写）
+        .andExpect(
+            jsonPath("$.slots[?(@.slot_key == 'building_area_sqm')].cognitive_state")
+                .value("observed"))
+        .andExpect(
+            jsonPath("$.slots[?(@.slot_key == 'building_area_sqm')].source_event_id").value("m2"));
   }
 
   @Test
