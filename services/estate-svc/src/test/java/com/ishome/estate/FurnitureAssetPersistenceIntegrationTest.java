@@ -25,9 +25,11 @@ import org.springframework.test.context.DynamicPropertySource;
  * 家具资产尺寸表 PG 实跑（Flyway 迁移 + MyBatis 只读实现，独立 schema svc_catalog_it）：本地 PG
  * （localhost:15432）可达才执行，不可达跳过。
  *
- * <p>本测试验的是**表与只读入口**：闭集拦不拦得住、取行键唯一不唯一、来路栏原样存不存得住、 求解按品类/按品类+档取不取得到。种子从契约仓灌进来那一半由 {@code
- * scripts/catalog/test_import_furniture_assets.py} 黑盒跑真脚本验（灌得进、幂等、契约改了能重灌、 表外品类拒灌）——灌库是那条路径上的事，在这里
- * mock 一份种子等于验了个假的。
+ * <p>本测试验的是**表与只读入口**：闭集拦不拦得住、退役拦不拦得住、取行键唯一不唯一、 来路栏原样存不存得住、求解按品类/按品类+档取不取得到。种子从契约仓灌进来那一半由 {@code
+ * scripts/catalog/test_import_furniture_assets.py} 黑盒跑真脚本验（灌得进、幂等、契约改了能重灌、
+ * 退役随即撤行、表外品类与非整数毫米拒灌）——灌库是那条路径上的事，在这里 mock 一份种子等于验了个假的。
+ *
+ * <p>两条不变量分两层落：**退役品类零资产行**在库里（复合外键，本测试验它）；**未退役品类均有行** 在灌库跑批里（PG 声明式约束表达不了"必须存在"，那份回归验它）。
  *
  * <p>夹具行用 JdbcTemplate 直接写：本服务今天对这张表**只读**，没有写入口可借；这几条验的本来 也是库的约束，绕开应用层写才验得到它。
  */
@@ -46,6 +48,10 @@ class FurnitureAssetPersistenceIntegrationTest {
       "甲 furnish_mock.py:56——无定源（常量无 docstring）；乙 design-package-full.json:1142 同值";
 
   private static final String PROVENANCE_FIXTURE = "乙 design-package-full.json:1153——拟真填充、无真跑来路";
+
+  /** 退役告示逐字取自契约（{@code furniture_categories.json} 的 retired 字段），指向替代的三件。 */
+  private static final String RETIRED_BATHROOM_FIXTURE =
+      "已退役 → toilet / vanity / shower · 2026-09-07。用户裁决『卫浴在资产库里拆开』：资产库正规粒度＝拆开三件。";
 
   @DynamicPropertySource
   static void postgresProperties(DynamicPropertyRegistry registry) {
@@ -78,9 +84,9 @@ class FurnitureAssetPersistenceIntegrationTest {
   @Test
   void listByCategoryReturnsEveryTierOrderedBySize() {
     givenCategory("bed");
-    givenAsset("asset-bed-large", "bed", "large", 1.8, 2.0, 0.45, PROVENANCE_CITED);
-    givenAsset("asset-bed-small", "bed", "small", 1.2, 2.0, 0.45, PROVENANCE_FIXTURE);
-    givenAsset("asset-bed-standard", "bed", "standard", 1.5, 2.0, 0.45, PROVENANCE_FIXTURE);
+    givenAsset("asset-bed-large", "bed", "large", 1800, 2000, 450, PROVENANCE_CITED);
+    givenAsset("asset-bed-small", "bed", "small", 1200, 2000, 450, PROVENANCE_FIXTURE);
+    givenAsset("asset-bed-standard", "bed", "standard", 1500, 2000, 450, PROVENANCE_FIXTURE);
 
     List<FurnitureAsset> candidates = furnitureAssetRepository.listByCategory("bed");
 
@@ -88,9 +94,9 @@ class FurnitureAssetPersistenceIntegrationTest {
         List.of("asset-bed-small", "asset-bed-standard", "asset-bed-large"),
         candidates.stream().map(FurnitureAsset::assetId).toList());
     assertEquals(SizeTier.SMALL, candidates.get(0).sizeTier());
-    assertEquals(1.2, candidates.get(0).widthM());
-    assertEquals(2.0, candidates.get(0).depthM());
-    assertEquals(0.45, candidates.get(0).heightM());
+    assertEquals(1200, candidates.get(0).widthMm());
+    assertEquals(2000, candidates.get(0).depthMm());
+    assertEquals(450, candidates.get(0).heightMm());
     // 今天没有一行对应真货：sku_ref 全空，size_source 全是常规档位
     assertTrue(candidates.stream().allMatch(asset -> asset.skuRef() == null));
     assertTrue(candidates.stream().allMatch(asset -> "regular-tier".equals(asset.sizeSource())));
@@ -101,12 +107,12 @@ class FurnitureAssetPersistenceIntegrationTest {
   void findByCategoryAndSizeTierReturnsSingleRowOrEmpty() {
     givenCategory("wardrobe");
     givenAsset(
-        "asset-wardrobe-standard", "wardrobe", "standard", 1.6, 0.6, 2.2, PROVENANCE_FIXTURE);
+        "asset-wardrobe-standard", "wardrobe", "standard", 1600, 600, 2200, PROVENANCE_FIXTURE);
 
     Optional<FurnitureAsset> standard =
         furnitureAssetRepository.findByCategoryAndSizeTier("wardrobe", SizeTier.STANDARD);
     assertTrue(standard.isPresent());
-    assertEquals(1.6, standard.get().widthM());
+    assertEquals(1600, standard.get().widthMm());
 
     // 该品类有 standard 但没有 large：这一层如实答"没有"
     assertTrue(
@@ -125,9 +131,9 @@ class FurnitureAssetPersistenceIntegrationTest {
                 "asset-hammock-standard",
                 "hammock",
                 "standard",
-                2.0,
-                0.8,
-                0.5,
+                2000,
+                800,
+                500,
                 PROVENANCE_FIXTURE));
   }
 
@@ -135,7 +141,7 @@ class FurnitureAssetPersistenceIntegrationTest {
   @Test
   void duplicateCategoryAndSizeTierIsRejected() {
     givenCategory("sofa");
-    givenAsset("asset-sofa-standard", "sofa", "standard", 2.2, 0.9, 0.8, PROVENANCE_CITED);
+    givenAsset("asset-sofa-standard", "sofa", "standard", 2200, 900, 800, PROVENANCE_CITED);
 
     assertThrows(
         DataIntegrityViolationException.class,
@@ -144,9 +150,9 @@ class FurnitureAssetPersistenceIntegrationTest {
                 "asset-sofa-standard-again",
                 "sofa",
                 "standard",
-                2.4,
-                0.9,
-                0.8,
+                2400,
+                900,
+                800,
                 PROVENANCE_FIXTURE));
   }
 
@@ -155,13 +161,7 @@ class FurnitureAssetPersistenceIntegrationTest {
   void provenanceWithoutDefiniteSourceIsStoredVerbatim() {
     givenCategory("nightstand");
     givenAsset(
-        "asset-nightstand-standard",
-        "nightstand",
-        "standard",
-        0.45,
-        0.4,
-        0.55,
-        PROVENANCE_NO_SOURCE);
+        "asset-nightstand-standard", "nightstand", "standard", 450, 400, 550, PROVENANCE_NO_SOURCE);
 
     FurnitureAsset reloaded =
         furnitureAssetRepository
@@ -174,7 +174,8 @@ class FurnitureAssetPersistenceIntegrationTest {
     givenCategory("bookshelf");
     assertThrows(
         DataIntegrityViolationException.class,
-        () -> givenAsset("asset-bookshelf-standard", "bookshelf", "standard", 0.8, 0.3, 2.0, "  "));
+        () ->
+            givenAsset("asset-bookshelf-standard", "bookshelf", "standard", 800, 300, 2000, "  "));
   }
 
   /** 命名禁纯序号：asset-001 这类过得了字符集、过不了语义命名那道列约束。 */
@@ -183,7 +184,7 @@ class FurnitureAssetPersistenceIntegrationTest {
     givenCategory("desk");
     assertThrows(
         DataIntegrityViolationException.class,
-        () -> givenAsset("asset-001", "desk", "standard", 1.2, 0.6, 0.75, PROVENANCE_NO_SOURCE));
+        () -> givenAsset("asset-001", "desk", "standard", 1200, 600, 750, PROVENANCE_NO_SOURCE));
   }
 
   /** 档位闭集：三档之外写不进去。 */
@@ -192,42 +193,100 @@ class FurnitureAssetPersistenceIntegrationTest {
     givenCategory("toilet");
     assertThrows(
         DataIntegrityViolationException.class,
+        () -> givenAsset("asset-toilet-huge", "toilet", "huge", 400, 700, 750, PROVENANCE_FIXTURE));
+  }
+
+  /**
+   * 不变量一（退役品类零资产行）：退役的词不许再进求解，DB 侧由指向在役品类的复合外键堵死—— 不是"留着行、加个标记位、指望读的人记得过滤"。今天的真样本是 {@code
+   * bathroom-fixture}（用户裁决 2026-09-07 卫浴拆开，正规粒度＝ toilet/vanity/shower 三件）。
+   */
+  @Test
+  void retiredCategoryCannotHaveAssetRow() {
+    givenCategory("bathroom-fixture", RETIRED_BATHROOM_FIXTURE);
+
+    assertThrows(
+        DataIntegrityViolationException.class,
         () ->
-            givenAsset("asset-toilet-huge", "toilet", "huge", 0.4, 0.7, 0.75, PROVENANCE_FIXTURE));
+            givenAsset(
+                "asset-bathroom-fixture-standard",
+                "bathroom-fixture",
+                "standard",
+                1200,
+                500,
+                850,
+                PROVENANCE_CITED));
+
+    // 词还在闭集里（只增不改），只是没有行——求解拿它取候选，落在"该品类一行都没有"那条降级上
+    assertEquals(
+        1,
+        jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM " + CATALOG + ".furniture_categories WHERE category = ?",
+            Integer.class,
+            "bathroom-fixture"));
+    assertTrue(furnitureAssetRepository.listByCategory("bathroom-fixture").isEmpty());
+  }
+
+  /** 同一条外键的反向：还留着资产行的品类退不了役——**撤行必须先于退役**，顺序与契约一致。 */
+  @Test
+  void categoryWithAssetRowsCannotBeRetired() {
+    givenCategory("sideboard");
+    givenAsset(
+        "asset-sideboard-standard", "sideboard", "standard", 1200, 400, 850, PROVENANCE_FIXTURE);
+
+    assertThrows(DataIntegrityViolationException.class, () -> retire("sideboard", "试退役——行还在，退不掉"));
+  }
+
+  /** 退役告示不许是空的：只说"废了"不说"改用什么"＝把人扔在半路（《纪律·不许只说不做什么》）。 */
+  @Test
+  void blankRetirementNoticeIsRejected() {
+    assertThrows(DataIntegrityViolationException.class, () -> givenCategory("dining-chair", "   "));
   }
 
   private void givenCategory(String category) {
+    givenCategory(category, null);
+  }
+
+  /** {@code retired} 非空即已退役：词留在闭集里（只增不改），但不再是求解的粒度。 */
+  private void givenCategory(String category, String retired) {
     jdbcTemplate.update(
         "INSERT INTO "
             + CATALOG
-            + ".furniture_categories (id, category, semantics)"
-            + " VALUES (?, ?, ?) ON CONFLICT (category) DO NOTHING",
+            + ".furniture_categories (id, category, semantics, retired)"
+            + " VALUES (?, ?, ?, ?) ON CONFLICT (category) DO NOTHING",
         UlidCreator.getUlid().toString(),
         category,
-        "集成测试夹具：" + category);
+        "集成测试夹具：" + category,
+        retired);
+  }
+
+  private void retire(String category, String retired) {
+    jdbcTemplate.update(
+        "UPDATE " + CATALOG + ".furniture_categories SET retired = ? WHERE category = ?",
+        retired,
+        category);
   }
 
   private void givenAsset(
       String assetId,
       String category,
       String sizeTier,
-      double widthM,
-      double depthM,
-      double heightM,
+      int widthMm,
+      int depthMm,
+      int heightMm,
       String provenance) {
     jdbcTemplate.update(
         "INSERT INTO "
             + CATALOG
             + ".furniture_assets (id, asset_id, category, size_tier,"
-            + " width_m, depth_m, height_m, sku_ref, size_source, provenance)"
+            + " width_mm, depth_mm, height_mm, sku_ref, size_source, provenance)"
             + " VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 'regular-tier', ?)",
         UlidCreator.getUlid().toString(),
         assetId,
         category,
         sizeTier,
-        widthM,
-        depthM,
-        heightM,
+        widthMm,
+        depthMm,
+        heightMm,
         provenance);
   }
 }

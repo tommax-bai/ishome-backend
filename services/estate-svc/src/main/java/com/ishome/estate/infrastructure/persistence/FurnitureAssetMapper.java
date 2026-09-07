@@ -13,21 +13,24 @@ import org.apache.ibatis.annotations.Select;
  * 集成测试=svc_catalog_it）——与 Flyway placeholder {@code catalog_schema} 同一事实两处注入， 同 project-svc {@code
  * ReleaseMapper} 的取法。
  *
- * <p>排序按 {@code width_m} 升序 + {@code asset_id} 兜底：候选顺序必须确定（同输入同输出）。 不按 {@code size_tier} 字面排——字母序是
+ * <p>排序按 {@code width_mm} 升序 + {@code asset_id} 兜底：候选顺序必须确定（同输入同输出）。 不按 {@code size_tier} 字面排——字母序是
  * large/small/standard，与档位大小无关；真数据里 宽度升序恰好就是 small→standard→large，用它即可，不必在 SQL 里写一段档位映射。
+ *
+ * <p>不过滤退役品类：退役品类**根本没有行**（复合外键堵死，见迁移 V1），过滤条件写在这里等于承认 表里可能有那样的行。
  */
 @Mapper
 public interface FurnitureAssetMapper {
 
   String COLUMNS =
-      "asset_id, category, size_tier, width_m, depth_m, height_m, sku_ref, size_source, provenance";
+      "asset_id, category, size_tier, width_mm, depth_mm, height_mm,"
+          + " sku_ref, size_source, provenance";
 
   @Select(
       "SELECT "
           + COLUMNS
           + " FROM ${catalogSchema}.furniture_assets "
           + "WHERE category = #{category} AND deleted_at IS NULL "
-          + "ORDER BY width_m, asset_id")
+          + "ORDER BY width_mm, asset_id")
   List<FurnitureAssetPO> listActiveByCategory(@Param("category") String category);
 
   @Select(

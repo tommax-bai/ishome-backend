@@ -11,9 +11,9 @@ public class FurnitureAssetPO {
   private String assetId;
   private String category;
   private String sizeTier;
-  private double widthM;
-  private double depthM;
-  private double heightM;
+  private int widthMm;
+  private int depthMm;
+  private int heightMm;
   private String skuRef;
   private String sizeSource;
   private String provenance;
@@ -42,28 +42,28 @@ public class FurnitureAssetPO {
     this.sizeTier = sizeTier;
   }
 
-  public double getWidthM() {
-    return widthM;
+  public int getWidthMm() {
+    return widthMm;
   }
 
-  public void setWidthM(double widthM) {
-    this.widthM = widthM;
+  public void setWidthMm(int widthMm) {
+    this.widthMm = widthMm;
   }
 
-  public double getDepthM() {
-    return depthM;
+  public int getDepthMm() {
+    return depthMm;
   }
 
-  public void setDepthM(double depthM) {
-    this.depthM = depthM;
+  public void setDepthMm(int depthMm) {
+    this.depthMm = depthMm;
   }
 
-  public double getHeightM() {
-    return heightM;
+  public int getHeightMm() {
+    return heightMm;
   }
 
-  public void setHeightM(double heightM) {
-    this.heightM = heightM;
+  public void setHeightMm(int heightMm) {
+    this.heightMm = heightMm;
   }
 
   public String getSkuRef() {

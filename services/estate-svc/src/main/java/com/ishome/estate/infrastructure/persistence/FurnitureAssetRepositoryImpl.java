@@ -39,9 +39,9 @@ public class FurnitureAssetRepositoryImpl implements FurnitureAssetRepository {
         po.getAssetId(),
         po.getCategory(),
         SizeTier.fromWireValue(po.getSizeTier()),
-        po.getWidthM(),
-        po.getDepthM(),
-        po.getHeightM(),
+        po.getWidthMm(),
+        po.getDepthMm(),
+        po.getHeightMm(),
         po.getSkuRef(),
         po.getSizeSource(),
         po.getProvenance());
