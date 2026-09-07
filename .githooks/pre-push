@@ -17,5 +17,8 @@ if command -v uv >/dev/null 2>&1; then
   ./scripts/rulebook/test_verify_seeds.py >/dev/null || { ./scripts/rulebook/test_verify_seeds.py; exit 1; }
   echo "== pre-push: rulebook 种子核验跑批（规则 4.10a/4.10b/1.9）"
   ./scripts/rulebook/verify_seeds.py >/dev/null || { ./scripts/rulebook/verify_seeds.py; exit 1; }
+  echo "== pre-push: 家具资产尺寸表灌库回归（幂等、契约改了能重灌、表外品类拒灌；PG 不可达即跳过）"
+  ./scripts/catalog/test_import_furniture_assets.py >/dev/null \
+    || { ./scripts/catalog/test_import_furniture_assets.py; exit 1; }
 fi
 echo "== pre-push: OK"
