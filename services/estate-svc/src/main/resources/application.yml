@@ -2,15 +2,27 @@ spring:
   application:
     name: ishome-estate-svc
   datasource:
-    # 待拍板②默认 Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）
-    url: jdbc:postgresql://localhost:5432/ishome?currentSchema=svc_estate
-    username: ishome
-    password: ishome
+    # 已拍板②：Postgres；schema-per-service，禁止跨 schema 外键与 join（技术架构 §2.5）。
+    # 默认值 = 本地开发 PG（docker compose 项目 ishome-dev，localhost:15432），与 shared/kernel
+    # LocalPostgres 及 project-svc 的默认值一致；部署环境经 ISHOME_DB_* 环境变量覆盖。
+    # 原先写死 localhost:5432/ishome（本机另一套 PG）——那是首批脚手架的遗留值，连不上本项目的库。
+    url: jdbc:postgresql://${ISHOME_DB_HOST:localhost}:${ISHOME_DB_PORT:15432}/${ISHOME_DB_NAME:ishome}?currentSchema=svc_estate&stringtype=unspecified
+    username: ${ISHOME_DB_USER:ishome}
+    password: ${ISHOME_DB_PASSWORD:ishome-local-dev}
   flyway:
-    # catalog（三维资产库）为逻辑独立域、物理落 estate（对齐文档 §3.3）：
+    # catalog（家具/三维资产库）为逻辑独立域、物理落 estate（对齐文档 §3.3）：
     # schema 独立为 svc_catalog——拆库不流血纪律；升格独立服务的触发条件写死在对齐文档
     schemas: svc_estate,svc_catalog
     default-schema: svc_estate
+    placeholders:
+      # V1 建表用的 catalog schema 名：集成测试注入 svc_catalog_it（clean 不触碰正式库）
+      catalog_schema: svc_catalog
+
+mybatis-plus:
+  configuration-properties:
+    # FurnitureAssetMapper 的 ${catalogSchema}：与 Flyway placeholder catalog_schema 指同一 schema
+    # （IT 覆写为 _it 位）——同一事实两处注入，同 project-svc 的 rulebookSchema
+    catalogSchema: svc_catalog
 
 server:
   port: 8080
