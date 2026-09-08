@@ -860,6 +860,45 @@ class RulebookEvaluatorTest {
     assertFalse(cost.source().contains("取整"), cost.source());
   }
 
+  /**
+   * 全屋硬装行情单价（attr-price-hardfit-total-sqm，2026-09-08 入种子）走的是同一条"单价 × 建筑面积"通路， 求值线**零改动**就算出
+   * {@code lkp-cost-hardfit-total-sqm}——这是业主最先问的那笔"110 ㎡ 大概要花多少"。
+   *
+   * <p>城市档逐字命中 breakdown（二线 800–2000）；110 ㎡ → 88 000–220 000 元，百元位本就是整数，取整声明照常写进推导原文。
+   */
+  @Test
+  void derivesWholeHouseHardFitCostForOneHundredTenSqm() {
+    Map<String, Object> props = new java.util.LinkedHashMap<>();
+    props.put("unit", "㎡");
+    props.put("quantity_basis", "building_area_sqm");
+    props.put("cost_round_to", 100);
+    props.put("price_range", List.of(500, 3000));
+    props.put(
+        "breakdown",
+        Map.of(
+            "一线", List.of(1000, 3000),
+            "二线", List.of(800, 2000),
+            "三四线", List.of(500, 1500)));
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price("attr-price-hardfit-total-sqm", props, "draft", null, null))),
+            new EvaluationInput(1700, 1780, null, null, Map.of(), "二线", 110.0, 80),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor cost = anchor(pkg, "lkp-cost-hardfit-total-sqm");
+    assertEquals(Map.of("min", 88000L, "max", 220000L), cost.value());
+    assertEquals("元", cost.unit());
+    assertEquals("range", cost.valueKind());
+    assertTrue(
+        cost.source().contains("单价 800–2000 元/㎡（城市档 二线）× building_area_sqm 110.0 ＝ 88000–220000"),
+        cost.source());
+    // 单价落点与金额落点分属两条：单价照旧投影为 lkp-price-*
+    assertEquals(Map.of("min", 800, "max", 2000), anchor(pkg, "lkp-price-hardfit-total-sqm").value());
+  }
+
   @Test
   void staleUnitPriceStillDeliversMoneyWithAcquisitionDate() {
     ReportDataPackage pkg =
