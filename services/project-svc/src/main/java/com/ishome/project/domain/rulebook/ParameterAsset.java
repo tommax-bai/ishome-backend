@@ -13,6 +13,10 @@ package com.ishome.project.domain.rulebook;
  *
  * <p>{@code formula} 为公式的文本形态——可执行形态在 {@link RulebookEvaluator} 按 assetId 显式实现 （数字不由 LLM 决定，图 v0.2
  * §0）。
+ *
+ * <p>{@code roundTo} 是**公式点值的取整粒度**（规则 4.10e 增补，用户裁决 2026-09-08），随 {@code unit} 计（尺寸类 10 mm、 长度 0.1
+ * 米）。它是数据逐条声明的，求值线只照声明取整、区间两端各自取整；**{@code null} 即不取整**——用户原值、计数、规范原值
+ * 都不声明，直取值落点上根本没有这个字段（核验拦）。渲染层一字不动（渲染层禁换算红线不变）。
  */
 public record ParameterAsset(
     String assetId,
@@ -22,7 +26,37 @@ public record ParameterAsset(
     Object value,
     String referencePlane,
     String formula,
+    Double roundTo,
     String unit,
     String calibration,
     String source,
-    int version) {}
+    int version) {
+
+  /** 未声明取整粒度的资产——直取值落点与不取整的公式落点的常态（不声明即不取整）。 */
+  public ParameterAsset(
+      String assetId,
+      String name,
+      String numberClass,
+      String valueKind,
+      Object value,
+      String referencePlane,
+      String formula,
+      String unit,
+      String calibration,
+      String source,
+      int version) {
+    this(
+        assetId,
+        name,
+        numberClass,
+        valueKind,
+        value,
+        referencePlane,
+        formula,
+        null,
+        unit,
+        calibration,
+        source,
+        version);
+  }
+}

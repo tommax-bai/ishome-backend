@@ -24,13 +24,23 @@ items:
     message: "方法论元语言外泄（规则 4.15）"
     decided_by: "规范规则 4.15"
 
+  # retired（用户裁决 2026-09-08，version 1 → 2）：**裁决未变，判据的载体换到渲染层**——"工程量纲要给
+  # 业主翻译"仍然成立，执行它的判据从 release 数据挪进渲染层：术语解释放**本页页脚一排**（规则 2.6，
+  # 与"本页依据"并列），解释文案是契约仓受控词表的一列（同 registries/anchor_items 的形态），渲染层按本页
+  # 出现的词表内单位挑出来印，写手不写不管；判据改成确定性的——页内出现词表内单位而页脚无该词解释＝整册拒出。
+  # 退役理由＝它**从未命中**：原 pattern（留档）
+  #     \d+\s?(mm|lx|K|Ra|°|延米|㎡)
+  # 跑在**记号替换前**的正文上，而那时正文里只有 {lkp-*} 占位符、没有数字，数字是渲染层替进去的——
+  # 一个永远匹配不到的判据等于没有。**pattern 一并摘掉**：规则层 gate 按设计不看 status（规则 4.10d），
+  # 留着 pattern 的 retired 行会继续拦截，等于没退役。旧 release 快照里它原样保留，回滚＝切回旧 release_tag。
   - id: cr-unit-translation
     type: regex_require_annotation
     scope: [正文]
-    pattern: "\\d+\\s?(mm|lx|K|Ra|°|延米|㎡)"
-    require: "同句须有生活化括注，或该数字只出现在选型表/图中"
+    version: 2
+    status: retired
+    require: "本页出现词表内单位时页脚须有该词解释（渲染层执行，规则 2.6）；原口径「同句须有生活化括注」作废"
     message: "工程量纲未翻译（规则 2.3）"
-    decided_by: "规范规则 2.3"
+    decided_by: "规范规则 2.3；用户裁决 2026-09-08 换载体退役（术语解释放本页页脚一排，规则 2.6；判据由渲染层按契约仓词表执行）"
 
   # retired（2026-08-30，version 1 → 2）：**裁决未变，判据的载体变了**——用户裁决"单边界措辞归
   # 渲染层"仍然有效，执行它的判据从 release 数据挪进代码（reportgen gate-bound-word-before-ref

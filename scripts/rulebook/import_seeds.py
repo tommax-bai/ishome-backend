@@ -107,6 +107,8 @@ def rows():
                     value_kind=m.get("value_kind"), reference_plane=m.get("reference_plane"),
                     value=J(m.get("value")) if m.get("value") is not None else None,
                     formula=m.get("formula"), unit=str(unit) if unit else None,
+                    # 公式点值取整粒度（V8 列，规则 4.10e 增补）：只有公式类条目才有，核验已拦住别处出现
+                    round_to=m.get("round_to"),
                     linked=J(m.get("linked")) if m.get("linked") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
                     conflict=bool(m.get("conflict", False)),

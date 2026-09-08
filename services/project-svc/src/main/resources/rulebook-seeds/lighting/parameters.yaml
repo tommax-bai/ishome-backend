@@ -10,8 +10,11 @@ form: parameter
 release: null            # 未发布；calibrated 条目齐备后方可 cut release
 
 items:
+  # 题名去「照度」（用户裁决 2026-09-08，规则 4.13 增补）：「照度」是本域行话，而页脚依据印的是题名。
+  # 七条题名「照度」→「亮度」，与 persona 示范句「起居这片的亮度锚在 {lkp-illuminance-living}」同一个词；
+  # id 不动，source 里的国标原文行标签不动。
   - id: lkp-accent-ratio
-    name: 重点照明照度倍数
+    name: 重点照明亮度倍数
     number_class: analysis          # 数字三分法：分析数字（规则 2.3）
     value_kind: range               # 一个匿名项，值是区间（规则 1.9）
     value: {min: 3, max: 5}
@@ -28,7 +31,7 @@ items:
     consumers: [art-lighting-chapter, art-purchase-checklist]
 
   - id: lkp-illuminance-living
-    name: 起居室照度标准值
+    name: 起居室亮度标准值
     number_class: analysis
     value_kind: scenario            # 多项，各项值是数；项名 general/reading 见受控词表（规则 1.9 三）
     value: {general: 100, reading: 300}
@@ -41,7 +44,7 @@ items:
     consumers: [art-lighting-chapter]
 
   - id: lkp-illuminance-bedroom
-    name: 卧室照度标准值
+    name: 卧室亮度标准值
     number_class: analysis
     value_kind: scenario
     value: {general: 75, reading: 200}
@@ -56,7 +59,7 @@ items:
   # —— 以下四条为 run-2026-08-28-2 新增：GB/T 50034-2024 表5.2.1 原文直取补齐住宅表全行 ——
   # 同一表、同一次原文直取，source 写法一致；★=原表注"指混合照明照度"
   - id: lkp-illuminance-kitchen
-    name: 厨房照度标准值
+    name: 厨房亮度标准值
     number_class: analysis
     value_kind: scenario
     value: {general: 100, task: 300}
@@ -70,7 +73,7 @@ items:
     consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
 
   - id: lkp-illuminance-bath
-    name: 卫生间照度标准值
+    name: 卫生间亮度标准值
     number_class: analysis
     value_kind: scenario
     value: {general: 100, vanity: 300}
@@ -83,8 +86,10 @@ items:
     note: "★口径两点：①原文是'化妆台 台面'水平照度，不是'镜前垂直面'——住宅表未给垂直面值；②垂直面 500lx 出现在同标准表5.3.4（剧场化妆室 1.1m 高处垂直面 500lx Ra90），是**公共建筑**口径，禁跨建筑类别复用。③本行 Ra 90 是国标对住宅化妆台的要求，高于住宅其余场所的 Ra 80"
     consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
 
+  # 题名去「楼梯间」（2026-09-08，随报告线四条同批修 bug）：原题名照抄国标表 5.2.1 行标签「走廊、楼梯间」，
+  # 9-07 册因此写出"楼梯间"而业主家没楼梯。value 是国标该行同一档，行标签原样留在 source 里。
   - id: lkp-illuminance-corridor
-    name: 走廊与楼梯间照度标准值
+    name: 走廊亮度标准值
     number_class: analysis
     value_kind: single              # 一个匿名项，值是数——v 壳去掉（无语义键，规则 1.7）
     value: 100
@@ -97,7 +102,7 @@ items:
     consumers: [art-lighting-chapter, art-ceiling-lighting-plan]
 
   - id: lkp-illuminance-dining
-    name: 餐厅照度标准值
+    name: 餐厅亮度标准值
     number_class: analysis
     value_kind: single
     value: 150

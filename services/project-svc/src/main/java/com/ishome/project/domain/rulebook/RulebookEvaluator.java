@@ -1,5 +1,7 @@
 package com.ishome.project.domain.rulebook;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,6 +18,11 @@ import java.util.TreeSet;
  *
  * <p>三条求值路径：①参数带 value → 直取（formula 仅为推导说明）；②仅带 formula → 按 assetId 显式实现
  * 代入匿名输入——公式的可执行形态在此登记，未登记/输入缺失 → gap-；③无值无公式 → gap-。 结果按 lkpId 排序，数值全为整数毫米/原样单位——不引入浮点位数漂移。
+ *
+ * <p>公式求出的点值**按资产自己声明的粒度取整**（{@link ParameterAsset#roundTo()}，规则 4.10e 增补，用户裁决 2026-09-08）：
+ * 取整、不取整都由数据说，求值线只执行；不声明即不取整；区间两端各自取整；推导原文写出"2136，取整到 10 mm ＝ 2140"。
+ * 落点对象带的是取整后的值，故任何读落点的下游公式拿到的都是取整后的值（业主看到的输入输出对得上）。渲染层一字不动。 单价 × 量的派生金额同理，粒度由单价资产的 {@code
+ * props.cost_round_to} 声明（元）。
  *
  * <p>落点有**两个来源**：parameters（上述三条路径）与 attributes 里 {@code entity_type=work_item} 的 单价资产（{@link
  * #projectWorkItemPrice}，规则 5.15 造价章——造价章的数字全在单价库，不在参数表）。 两者产出的落点对象形态完全一致，成文线不区分来源。
@@ -332,9 +339,13 @@ public final class RulebookEvaluator {
       gaps.add(new GapRecord(costId, releaseTag, "empty_definition", "单价资产无 price_range 区间"));
       return;
     }
-    Map<String, Object> value = new LinkedHashMap<>();
-    value.put("min", Math.round(quantity * min.doubleValue()));
-    value.put("max", Math.round(quantity * max.doubleValue()));
+    // 元是最小记数单位：先到元（不到元就是 5983.999… 这种浮点尾巴），再按声明取整（估算类金额到百元）
+    Map<String, Object> exact = new LinkedHashMap<>();
+    exact.put("min", Math.round(quantity * min.doubleValue()));
+    exact.put("max", Math.round(quantity * max.doubleValue()));
+    Double costRoundTo =
+        attribute.props().get(COST_ROUND_TO_KEY) instanceof Number g ? g.doubleValue() : null;
+    Object value = roundTo(exact, costRoundTo);
     anchors.add(
         new ReportAnchor(
             costId,
@@ -357,6 +368,9 @@ public final class RulebookEvaluator {
                 + basis
                 + " "
                 + quantity
+                + " ＝ "
+                + text(exact)
+                + roundingClause(value, costRoundTo, "元")
                 + "。单价是经验条目、区间本身就宽，故金额区间随之宽。",
             attribute.calibration(),
             isDegraded(attribute.calibration()),
@@ -377,6 +391,9 @@ public final class RulebookEvaluator {
       default -> null;
     };
   }
+
+  /** 单价资产声明的派生金额取整粒度（元）；缺席即不取整（规则 4.10e 增补）。 */
+  private static final String COST_ROUND_TO_KEY = "cost_round_to";
 
   /** {@code attr-price-hydro-labor-sqm} → {@code lkp-cost-hydro-labor-sqm}（金额与单价分属两个落点）。 */
   private static String costIdOf(String assetId) {
@@ -491,17 +508,67 @@ public final class RulebookEvaluator {
               parameter.formula()));
       return;
     }
+    // 取整按资产自己的声明（规则 4.10e 增补）：不声明就原样下发；落点带的是取整后的值，下游读到的也是它
+    Object delivered = roundTo(computed, parameter.roundTo());
     anchors.add(
-        anchor(parameter, releaseTag, computed, evaluatedOn, derivationOf(parameter, input)));
+        anchor(
+            parameter,
+            releaseTag,
+            delivered,
+            evaluatedOn,
+            provenanceOf(parameter, derivationOf(parameter, input, computed, delivered))));
   }
 
   /**
-   * 这个数是怎么算出来的——**如实写，写不出就返回资产原本的 source，绝不编**。
-   *
-   * <p>射程只覆盖求值线自己实现了公式的那几条：它们的推导在代码里，代码知道就该说出来。
+   * 公式落点的依据 = 推导原文 ＋ 公式本身的出处，两半都要：推导说这个数怎么算的（没有它写作步会编一个，2026-08-31 立案），出处说这条公式凭什么（"行业通行做法 + 内部规范
+   * §5.2 转写"——标注层印给业主看的那一句）。 推导写不出（未登记推导的资产）就只剩出处，与直取值落点同形态；出处为空就只剩推导，绝不编。
    */
-  private static String derivationOf(ParameterAsset parameter, EvaluationInput input) {
+  private static String provenanceOf(ParameterAsset parameter, String derivation) {
+    String source = parameter.source();
+    boolean hasSource = source != null && !source.isBlank();
+    if (derivation == null) {
+      return hasSource ? source : null;
+    }
+    return hasSource ? derivation + "公式依据：" + source : derivation;
+  }
+
+  /**
+   * 这个数是怎么算出来的——**如实写，写不出就返回 null 由出处顶上，绝不编**。
+   *
+   * <p>射程只覆盖求值线自己实现了公式的那几条：它们的推导在代码里，代码知道就该说出来。取整了的要把取整前后都写出来 （"2136，取整到 10 mm ＝
+   * 2140"）——推导原文进包，业主看到的输入与输出要对得上；不声明取整的没有这一句。
+   */
+  private static String derivationOf(
+      ParameterAsset parameter, EvaluationInput input, Object computed, Object delivered) {
+    String rounding = roundingClause(delivered, parameter.roundTo(), parameter.unit());
     return switch (parameter.assetId()) {
+      case "lkp-counter-height" ->
+          "求值线按公式算出：主厨身高 "
+              + input.chiefHeightMm()
+              + " mm ÷ 2 ＋ "
+              + COUNTER_OFFSET_MIN
+              + "–"
+              + COUNTER_OFFSET_MAX
+              + " mm ＝ "
+              + text(computed)
+              + rounding
+              + "。";
+      case "lkp-wardrobe-rod" ->
+          "求值线按公式算出：身高 "
+              + input.tallestHeightMm()
+              + " mm × 1.2 ＝ "
+              + text(computed)
+              + rounding
+              + "。";
+      case "lkp-mirror-height" ->
+          "求值线按公式算出：使用者眼高 " + input.eyeHeightMm() + " mm 直接取用" + rounding + "。";
+      case "lkp-tv-distance" ->
+          "求值线按公式算出：屏高 "
+              + input.tvScreenHeightMm()
+              + " mm × 3–4 ＝ "
+              + text(computed)
+              + rounding
+              + "。";
       case "lkp-storage-total-meters" ->
           "求值线按公式算出：套内面积 "
               + input.netAreaSqm()
@@ -509,10 +576,77 @@ public final class RulebookEvaluator {
               + input.buildingAreaSqm()
               + " ㎡ × 得房率 "
               + input.floorAreaRatioPercent()
-              + "%）× 收纳密度基准（米/㎡）。密度基准是经验条目、无外部源，故本条区间偏宽；"
+              + "%）× 收纳密度基准（米/㎡）＝ "
+              + text(computed)
+              + rounding
+              + "。密度基准是经验条目、无外部源，故本条区间偏宽；"
               + "定稿平面接通后改按各柜体投影沿墙长度实算，区间随之收窄。";
-      default -> parameter.source();
+      default -> null;
     };
+  }
+
+  /**
+   * 推导原文里的取整那一句："，取整到 10 mm ＝ 2140"。未声明粒度（{@code granularity == null}）即空串——没取整就不说取整。
+   *
+   * <p>取整前后相等也照写：业主看到"＝ 900–950，取整到 10 mm ＝ 900–950"知道这个数过了取整这一步，比看到一个没说明的整数更准确。
+   */
+  private static String roundingClause(Object delivered, Double granularity, String unit) {
+    if (granularity == null) {
+      return "";
+    }
+    return "，取整到 " + text(granularity) + " " + unit + " ＝ " + text(delivered);
+  }
+
+  /** 推导原文里的数：标量原样，区间写成 "min–max"（单边界只写有的那一侧）。 */
+  private static String text(Object value) {
+    if (value instanceof Map<?, ?> map) {
+      Object min = map.get("min");
+      Object max = map.get("max");
+      if (min != null && max != null) {
+        return text(min) + "–" + text(max);
+      }
+      return min != null ? text(min) : text(max);
+    }
+    if (value instanceof Double d && d == Math.rint(d) && !d.isInfinite()) {
+      return String.valueOf(d.longValue());
+    }
+    return String.valueOf(value);
+  }
+
+  /**
+   * 按声明的粒度取整（规则 4.10e 增补）：标量取整，区间 {@code {min,max}} 两端各自取整；粒度为 {@code null} 即原样返回。
+   *
+   * <p>走 {@link BigDecimal} 不走 {@code Math.round(v / g) * g}：粒度 0.1 时后者会把 30.8 算成
+   * 30.800000000000004—— 取整是为了去掉假精度，不能自己再造一截浮点尾巴。粒度是整数（10、100）时结果给整数，粒度带小数（0.1）时给对应位数的小数。
+   */
+  public static Object roundTo(Object value, Double granularity) {
+    if (granularity == null) {
+      return value;
+    }
+    if (value instanceof Number n) {
+      return roundNumber(n, granularity);
+    }
+    if (value instanceof Map<?, ?> map) {
+      Map<String, Object> rounded = new LinkedHashMap<>();
+      map.forEach(
+          (k, v) ->
+              rounded.put(
+                  String.valueOf(k), v instanceof Number n ? roundNumber(n, granularity) : v));
+      return rounded;
+    }
+    return value;
+  }
+
+  private static Number roundNumber(Number value, double granularity) {
+    BigDecimal step = BigDecimal.valueOf(granularity);
+    BigDecimal rounded =
+        BigDecimal.valueOf(value.doubleValue())
+            .divide(step, 0, RoundingMode.HALF_UP)
+            .multiply(step);
+    if (step.stripTrailingZeros().scale() <= 0) {
+      return rounded.longValueExact();
+    }
+    return rounded.setScale(step.stripTrailingZeros().scale(), RoundingMode.HALF_UP).doubleValue();
   }
 
   /**
@@ -619,15 +753,17 @@ public final class RulebookEvaluator {
         || !(density.get("max") instanceof Number max)) {
       return null;
     }
+    // 不在这里取整：一位小数是这条资产声明的粒度（round_to: 0.1），由 resolve 按声明统一取整——
+    // 代码里再写死一份就是同一件事两处说（此前正是这么写的，2026-09-08 挪回数据）
+    // 乘法走 BigDecimal：88 × 0.35 在 double 里是 30.800000000000004，那截尾巴会原样进推导原文
     Map<String, Object> value = new LinkedHashMap<>();
-    value.put("min", round1(netArea * min.doubleValue()));
-    value.put("max", round1(netArea * max.doubleValue()));
+    value.put("min", exactProduct(netArea, min));
+    value.put("max", exactProduct(netArea, max));
     return value;
   }
 
-  /** 一位小数：收纳长度按米给，再多的位数是求值线自造精度（规则 4.10e 禁）。 */
-  private static double round1(double v) {
-    return Math.round(v * 10.0) / 10.0;
+  private static double exactProduct(double a, Number b) {
+    return BigDecimal.valueOf(a).multiply(BigDecimal.valueOf(b.doubleValue())).doubleValue();
   }
 
   private static Map<String, Object> range(int min, int max) {

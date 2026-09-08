@@ -53,10 +53,13 @@ items:
   # 取值是**匿名画像里那个量的字段名**，现在闭集只有 building_area_sqm 一个：其余四条的量
   # （拆除面积/墙面展开/柜体投影/点位数）**一个都还不存在**，所以它们暂不带此字段，
   # 也就产不出金额——**拿不到就说没有，不许填猜的值**。量到位时各自补上。
+  # cost_round_to（规则 4.10e 增补，用户裁决 2026-09-08）：派生金额 lkp-cost-* 的取整粒度，单位元。
+  # 到百元：拍板原话"估算类金额到百元"——单价 confidence low、区间本就 ±50% 宽，2200–5984 里那个
+  # 84 是假精度。只取整派生的金额，单价原值不动；没有 quantity_basis 的条目不产金额、也不声明。
   - id: attr-price-hydro-labor-sqm
     name: 水电改造人工费（按建筑面积计价口径）
     calibration: draft
-    props: {unit: ㎡, quantity_basis: building_area_sqm, price_range: [25, 68], city_tier: 分档见 breakdown, confidence: low,
+    props: {unit: ㎡, quantity_basis: building_area_sqm, cost_round_to: 100, price_range: [25, 68], city_tier: 分档见 breakdown, confidence: low,
             effective_from: 2026-08-28, effective_to: 2026-11-28,
             breakdown: {一线: [60, 68], 二线: [35, 58], 三四线: [25, 50]}}
     source: "图纸之家 tuzhizhijia.com/fangchan/8468（2023 全国 43 份水电报价：上海 60/北京 68/深广 68/天津 58/长沙武汉 55/渝蓉 35/贵州 25-35/金华 50/杭州 40-50）"

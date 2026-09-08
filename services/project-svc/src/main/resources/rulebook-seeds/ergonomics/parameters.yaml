@@ -13,7 +13,11 @@ items:
   # —— 定制尺寸族（选型数字，给定制商的表达件）——
   # 公式落点的 value_kind 声明的是"代入匿名输入后求出什么形态"：其可执行形态在 RulebookEvaluator
   # 按 assetId 显式登记，形态与此处声明必须一致（不一致即契约 valueKind 与 value 对不上）。
-  - {id: lkp-counter-height, name: 橱柜台面高, number_class: selection, value_kind: range, formula: "主厨身高/2 + [50,100]", unit: mm, consumers: [art-ergonomics-chapter, art-purchase-checklist]}
+  # round_to（规则 4.10e 增补，用户裁决 2026-09-08）：公式点值的取整粒度，随 unit 计（这里是 mm）。
+  # 尺寸类声明 10——定制商按整十毫米下料，2136 这种数是夹具照出来的假精度；求值线按它取整、
+  # 区间两端各自取整、推导原文写出"2136，取整到 10 mm ＝ 2140"，渲染层一字不动。
+  # **不声明即不取整**：lkp-mirror-height 直接取使用者眼高（用户原值），不声明。
+  - {id: lkp-counter-height, name: 橱柜台面高, number_class: selection, value_kind: range, formula: "主厨身高/2 + [50,100]", round_to: 10, unit: mm, consumers: [art-ergonomics-chapter, art-purchase-checklist]}
   - {id: lkp-wall-cabinet-bottom, name: 吊柜底沿距台面, number_class: selection, value_kind: range, value: {min: 600, max: 700}, unit: mm}
   - {id: lkp-sink-depth, name: 水槽深度, number_class: selection, value_kind: range, value: {min: 180, max: 220}, unit: mm}
   - {id: lkp-desk-height, name: 书桌高, number_class: selection, value_kind: single, value: 720, unit: mm, linked: lkp-chair-height,
@@ -23,14 +27,16 @@ items:
      source: "同 lkp-desk-height：GB/T 3326-2016 标准号已定位，数值表未取到。旧版单源旁证：GB/T 3326-1997 椅座面高上限 460mm、桌椅高差 250~320mm——450 与 720 的高差 270mm 落在该带内，但单源不足以采",
      acquired: run-2026-08-28-2}
   - {id: lkp-bed-height, name: 床面高, number_class: selection, value_kind: range, value: {min: 450, max: 500}, unit: mm}
-  - {id: lkp-wardrobe-rod, name: 衣柜挂杆高, number_class: selection, value_kind: single, formula: "身高 × 1.2", unit: mm}
+  - {id: lkp-wardrobe-rod, name: 衣柜挂杆高, number_class: selection, value_kind: single, formula: "身高 × 1.2", round_to: 10, unit: mm}
   - {id: lkp-switch-height, name: 开关高, number_class: selection, value_kind: single, value: 1300, unit: mm}
   - {id: lkp-socket-height-common, name: 常用插座高, number_class: selection, value_kind: single, value: 300, unit: mm}
   - {id: lkp-mirror-height, name: 镜面中心高, number_class: selection, value_kind: single, formula: "使用者眼高", unit: mm}
 
   # —— 通道与操作校核（分析数字，12 项）——
-  - {id: lkp-passage-main, name: 主通道净宽, number_class: analysis, value_kind: range, value: {min: 900}, unit: mm}
-  - {id: lkp-passage-secondary, name: 次通道净宽, number_class: analysis, value_kind: range, value: {min: 750}, unit: mm}
+  # 题名「净宽」→「宽度」（用户裁决 2026-09-08，规则 4.13 增补）：「净宽」是本域行话（domain_extra），
+  # 而页脚"本页依据"印的是题名——9-07 册页脚照印了「主通道净宽」。改说法不改义，id 不动。
+  - {id: lkp-passage-main, name: 主通道宽度, number_class: analysis, value_kind: range, value: {min: 900}, unit: mm}
+  - {id: lkp-passage-secondary, name: 次通道宽度, number_class: analysis, value_kind: range, value: {min: 750}, unit: mm}
   - {id: lkp-sofa-table-gap, name: 沙发至茶几间距, number_class: analysis, value_kind: range, value: {min: 350, max: 450}, unit: mm}
   - {id: lkp-dining-pullback, name: 餐桌就座侧退让, number_class: analysis, value_kind: range, value: {min: 900}, unit: mm}
   - {id: lkp-bed-side, name: 床侧净距, number_class: analysis, value_kind: range, value: {min: 750}, unit: mm}
@@ -38,7 +44,7 @@ items:
   - {id: lkp-kitchen-u-gap, name: U型厨房两排间距, number_class: analysis, value_kind: range, value: {min: 900, max: 1200}, unit: mm}
   - {id: lkp-toilet-center-offset, name: 马桶中线距侧墙, number_class: analysis, value_kind: range, value: {min: 350}, unit: mm}
   - {id: lkp-shower-clear, name: 淋浴房内空, number_class: analysis, value_kind: dimension, value: {depth: {min: 800}, width: {min: 800}}, unit: mm}
-  - {id: lkp-tv-distance, name: 电视观看距离, number_class: analysis, value_kind: range, formula: "屏高 × [3,4]", unit: mm}
+  - {id: lkp-tv-distance, name: 电视观看距离, number_class: analysis, value_kind: range, formula: "屏高 × [3,4]", round_to: 10, unit: mm}
   - {id: lkp-entry-cabinet-depth, name: 玄关柜深, number_class: analysis, value_kind: range, value: {min: 350}, unit: mm}
   - {id: lkp-fridge-vent, name: 冰箱散热净距, number_class: analysis, value_kind: range, value: {min: 50}, unit: mm}
   - {id: lkp-work-triangle, name: 厨房工作三角周长, number_class: analysis, value_kind: range, value: {min: 3.6, max: 6.6}, unit: m}

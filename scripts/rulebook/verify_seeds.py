@@ -59,6 +59,14 @@ VALUE_META_KEYS = {"unit", "plane", "reference_plane"}
 # 的 tolerance: 0.1——自种子首版就在，而 source 只给了 0.8（"二八原则"），±0.1 没有源。
 # 它禁的不是"表达不确定"，是**用一个自己编的数字表达它**：不确定性由标注承担（规则 4.10c）。
 PRECISION_CLAIM_KEYS = {"tolerance", "approx", "margin", "error"}
+# 公式点值的取整粒度（规则 4.10e 增补，用户裁决 2026-09-08）：**只许出现在公式类条目上**，数值随条目 unit
+# 计（尺寸类 10 mm、面积 0.1 ㎡、比率 1 %）。它不是本条禁的"自造精度"——取整声明有源（施工精度），
+# 而 tolerance 那种是编一个没有源的数字去表达不确定。不声明即不取整（用户原值、计数、规范原值都不声明），
+# 求值线按声明取整、渲染层一字不动。直取值条目带它即拒：那是在给规范原值/用户原值加一层没人裁过的精度。
+ROUND_TO_KEY = "round_to"
+# 单价资产派生金额（单价 × 量 → lkp-cost-*，规则 5.15）的取整粒度，单位恒为元（估算类金额到百元）。
+# 只许跟着 quantity_basis 出现：没有量就没有金额，声明一个不存在的落点的取整等于写一条没人读的配置。
+COST_ROUND_TO_KEY = "cost_round_to"
 # 户型特征标记闭集（规则 6.3 触发字段）的唯一真源在 contracts，本脚本**读它不复制它**：
 # 复制一份就是"注册表与规则数据两套写法"，改一侧不改另一侧即静默失效（同锁定文案注册表纪律三）。
 # 检出路径同 shared/contracts 模块的约定：默认同级检出 ../ishome-contracts，CI 用 contracts-checkout；
@@ -149,6 +157,15 @@ def check_value_shape(merged, ctx):
             f"不由一个没有源的数字重复表达。真有区间就用 value_kind=range 给 min/max，"
             f"但那两个数必须有源，不能折算出来"
         )
+    if ROUND_TO_KEY in merged:
+        rt = merged[ROUND_TO_KEY]
+        if not merged.get("formula"):
+            errors.append(f"{ctx}: {ROUND_TO_KEY} 只许出现在公式类条目上（规则 4.10e 增补）——直取值是规范"
+                          f"原值/用户原值，不取整；要取整先把它写成公式")
+        elif not is_number(rt) or rt <= 0:
+            errors.append(f"{ctx}: {ROUND_TO_KEY} 须为正数（随条目 unit 计的粒度，如 10 / 0.1），现为 {rt!r}")
+        elif not merged.get("unit"):
+            errors.append(f"{ctx}: {ROUND_TO_KEY} 的粒度随 unit 计，而本条无 unit——无量纲的东西没有「取整到 10 什么」")
     kind, value = merged.get("value_kind"), merged.get("value")
     if kind is None:
         if value is not None:
@@ -313,6 +330,25 @@ for f, d in docs.items():
                 errors.append(f"{ctx}: 判官判据种子不得预置 status={st}（观察态是入册门禁第二道，规则 4.17）")
             if exs: judges.append(f"{ctx} status={st} examples={len(exs)}")
             continue  # check 不进 calibration 状态机
+        # 题名过本域禁词（规则 4.13 增补，用户裁决 2026-09-08）：页脚"本页依据"印的是条目题名，而行话
+        # （各域 domain_extra）改为全册扫、含脚注——9-07 ergonomics 页脚印出「净宽」即此缺口。题名是
+        # 数据，源头改题名、id 不动；公共软话同样不许进题名（题名本就该是业主话）。只扫会投影成落点
+        # 的两形态（parameter / attribute）：rule 无题名、check 的 message 不上页脚。
+        if form in ("parameter", "attribute") and merged.get("name"):
+            dom_dir = os.path.basename(os.path.dirname(f))
+            for term in sorted(banned_terms_of(dom_dir, docs)):
+                if term in str(merged["name"]):
+                    errors.append(f"{ctx}: 题名「{merged['name']}」含本域禁词「{term}」——页脚依据印题名，"
+                                  f"行话全册扫含脚注（规则 4.13 增补）；改成业主话，id 不改")
+        if form == "attribute":
+            props = merged.get("props") or {}
+            if COST_ROUND_TO_KEY in props:
+                crt = props[COST_ROUND_TO_KEY]
+                if not props.get("quantity_basis"):
+                    errors.append(f"{ctx}: {COST_ROUND_TO_KEY} 只许跟着 quantity_basis 出现——没有量就没有"
+                                  f"派生金额，声明的是一个不存在的落点的取整")
+                elif not is_number(crt) or crt <= 0:
+                    errors.append(f"{ctx}: {COST_ROUND_TO_KEY} 须为正数（元），现为 {crt!r}")
         if form == "rule":
             # 户型特征触发的标记名必须 ∈ 闭集（契约 rulebook/layout_features.md §四，两侧校验的核验侧）。
             # 越界或缺名都拦在入库前：求值线的匹配语义是"键存在即触发"，键名写错既不触发也不报错——

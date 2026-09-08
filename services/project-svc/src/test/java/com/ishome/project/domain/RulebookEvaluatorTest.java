@@ -287,6 +287,98 @@ class RulebookEvaluatorTest {
     assertNotNull(total.source(), "算出来的数没有说明它是怎么来的——写作步只能编");
     assertTrue(total.source().contains("套内面积"), "推导要说清用了哪个输入");
     assertTrue(total.source().contains("收纳密度基准"), "推导要说清乘了哪条系数");
+    assertTrue(total.source().contains("取整到 0.1 米 ＝ 22–30.8"), "取整了就要写出取整后的数");
+  }
+
+  // ── 公式点值取整按数据逐条声明（规则 4.10e 增补，用户裁决 2026-09-08） ───────────────────────
+
+  /** 带取整声明的公式落点夹具：与真种子同款（尺寸类 10 mm；镜面中心高取用户眼高原值，不声明）。 */
+  private static ParameterAsset rounded(
+      String id, String name, String valueKind, String formula, Double roundTo) {
+    return new ParameterAsset(
+        id, name, "selection", valueKind, null, null, formula, roundTo, "mm", "draft", "测试源", 1);
+  }
+
+  private static ReleaseSnapshot roundingSnapshot() {
+    return new ReleaseSnapshot(
+        "ergonomics",
+        "ergonomics@v12",
+        List.of(
+            rounded("lkp-counter-height", "橱柜台面高", "range", "主厨身高/2 + [50,100]", 10.0),
+            rounded("lkp-wardrobe-rod", "衣柜挂杆高", "single", "身高 × 1.2", 10.0),
+            rounded("lkp-mirror-height", "镜面中心高", "single", "使用者眼高", null),
+            rounded("lkp-tv-distance", "电视观看距离", "range", "屏高 × [3,4]", 10.0)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        Map.of());
+  }
+
+  /** 立案样本：9-07 真跑册衣柜挂杆高印出 2136 mm——定制商按整十毫米下料，那个 6 是夹具照出来的假精度。 */
+  @Test
+  void roundsFormulaPointValueToDeclaredGranularity() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(roundingSnapshot()),
+            new EvaluationInput(1705, 1780, 1653, 623, Map.of(), null, null, null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor rod = anchor(pkg, "lkp-wardrobe-rod");
+    assertEquals(2140L, rod.value());
+    assertEquals("single", rod.valueKind());
+    // 推导原文写出取整前后：业主看到的输入与输出要对得上
+    assertTrue(rod.source().contains("1780 mm × 1.2 ＝ 2136，取整到 10 mm ＝ 2140"), rod.source());
+  }
+
+  /** 不声明即不取整：用户原值（眼高）原样下发，推导里也没有"取整"这一句。 */
+  @Test
+  void leavesUndeclaredFormulaValuesUntouched() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(roundingSnapshot()),
+            new EvaluationInput(1705, 1780, 1653, 623, Map.of(), null, null, null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor mirror = anchor(pkg, "lkp-mirror-height");
+    assertEquals(1653L, mirror.value());
+    assertFalse(mirror.source().contains("取整"), mirror.source());
+    // 老快照（无 round_to 列）同理：ERGONOMICS 夹具的 2136 在 evaluatesFormulaAndPassThroughAnchors 里钉住
+  }
+
+  /** 区间两端各自取整——不是取整一端再平移另一端。 */
+  @Test
+  void roundsEachEndOfRangeSeparately() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(roundingSnapshot()),
+            new EvaluationInput(1705, 1780, 1653, 623, Map.of(), null, null, null),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    // 623 × 3 = 1869 → 1870；623 × 4 = 2492 → 2490
+    ReportAnchor tv = anchor(pkg, "lkp-tv-distance");
+    assertEquals(Map.of("min", 1870L, "max", 2490L), tv.value());
+    assertTrue(tv.source().contains("623 mm × 3–4 ＝ 1869–2492，取整到 10 mm ＝ 1870–2490"), tv.source());
+    // 1705 / 2 = 852（整数毫米）；852 + 50 = 902 → 900；852 + 100 = 952 → 950
+    ReportAnchor counter = anchor(pkg, "lkp-counter-height");
+    assertEquals(Map.of("min", 900L, "max", 950L), counter.value());
+  }
+
+  /** 取整走 BigDecimal：粒度 0.1 时 Math.round(v/g)*g 会造出 30.800000000000004——取整不能自己再造一截假精度。 */
+  @Test
+  void roundingDoesNotIntroduceFloatingPointTails() {
+    assertEquals(30.8, RulebookEvaluator.roundTo(30.800000000000004, 0.1));
+    assertEquals(22.0, RulebookEvaluator.roundTo(22.0, 0.1));
+    assertEquals(2140L, RulebookEvaluator.roundTo(2136L, 10.0));
+    assertEquals(6000L, RulebookEvaluator.roundTo(5984L, 100.0));
+    assertEquals(
+        Map.of("min", 900L, "max", 950L),
+        RulebookEvaluator.roundTo(Map.of("min", 902, "max", 952), 10.0));
+    assertEquals(5984L, RulebookEvaluator.roundTo(5984L, null));
   }
 
   /** 缺面积就**如实记 gap-**，不猜——而且 reason 要是 missing_input（公式有实现、是输入没给）。 */
@@ -326,6 +418,7 @@ class RulebookEvaluatorTest {
                 "draft",
                 "内部经验",
                 1),
+            // round_to 0.1 与真种子同款：一位小数由数据声明，不再写死在求值线里
             new ParameterAsset(
                 "lkp-storage-total-meters",
                 "全屋收纳总长",
@@ -334,6 +427,7 @@ class RulebookEvaluatorTest {
                 null,
                 null,
                 "套内面积 × 收纳密度基准",
+                0.1,
                 "米",
                 "draft",
                 "内部经验",
@@ -372,7 +466,11 @@ class RulebookEvaluatorTest {
     AnchorProvenance draft = anchor(pkg, "lkp-counter-height").provenance();
     assertTrue(draft.annotationRequired());
     assertEquals("draft", draft.calibration());
-    assertEquals("测试源", draft.source());
+    // 公式落点的依据 = 推导原文 + 公式出处（2026-09-08 起推导覆盖全部已登记公式）：出处那半仍在
+    assertTrue(draft.source().endsWith("公式依据：测试源"), draft.source());
+    assertTrue(draft.source().startsWith("求值线按公式算出：主厨身高 1700 mm"), draft.source());
+    // 直取值落点的依据就是资产自己的 source，原样
+    assertEquals("测试源", anchor(pkg, "lkp-passage-main").provenance().source());
     assertFalse(anchor(pkg, "lkp-passage-main").provenance().annotationRequired());
     assertEquals(EVALUATED_ON, pkg.evaluatedOn());
   }
@@ -721,6 +819,47 @@ class RulebookEvaluatorTest {
    * <p>原口径"越界即降档为仅出结构占比、不出金额"已作废：过期的行情仍是当时的真实行情，标了时间业主
    * 自己会折算，抹掉金额反而少给他一个判断维度。这条用例是那次推翻的回归锚——真库当前无过期单价， 只有它守着这条纪律。
    */
+  /** 单价 × 量 = 金额（lkp-cost-*）：派生金额按单价资产声明的粒度取整——估算类金额到百元（规则 4.10e 增补）。 */
+  @Test
+  void roundsDerivedCostToDeclaredHundredYuan() {
+    Map<String, Object> props = new java.util.HashMap<>(HYDRO_PROPS);
+    props.put("quantity_basis", "building_area_sqm");
+    props.put("cost_round_to", 100);
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price("attr-price-hydro-labor-sqm", props, "calibrated", null, null))),
+            new EvaluationInput(1700, 1780, null, null, Map.of(), null, 88.0, 80),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    // 25 × 88 = 2200；68 × 88 = 5984 → 6000
+    ReportAnchor cost = anchor(pkg, "lkp-cost-hydro-labor-sqm");
+    assertEquals(Map.of("min", 2200L, "max", 6000L), cost.value());
+    assertEquals("元", cost.unit());
+    assertTrue(cost.source().contains("＝ 2200–5984，取整到 100 元 ＝ 2200–6000"), cost.source());
+  }
+
+  /** 单价资产不声明 cost_round_to 即金额到元原样下发（不声明即不取整）。 */
+  @Test
+  void leavesDerivedCostUntouchedWithoutDeclaration() {
+    Map<String, Object> props = new java.util.HashMap<>(HYDRO_PROPS);
+    props.put("quantity_basis", "building_area_sqm");
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                budgetSnapshot(
+                    price("attr-price-hydro-labor-sqm", props, "calibrated", null, null))),
+            new EvaluationInput(1700, 1780, null, null, Map.of(), null, 88.0, 80),
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor cost = anchor(pkg, "lkp-cost-hydro-labor-sqm");
+    assertEquals(Map.of("min", 2200L, "max", 5984L), cost.value());
+    assertFalse(cost.source().contains("取整"), cost.source());
+  }
+
   @Test
   void staleUnitPriceStillDeliversMoneyWithAcquisitionDate() {
     ReportDataPackage pkg =

@@ -110,7 +110,7 @@ class RulebookEvaluationIntegrationTest {
           {"asset_id":"lkp-counter-height","name":"橱柜台面高","number_class":"selection",
            "value_kind":"range","value":null,"formula":"主厨身高/2 + [50,100]","unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-wardrobe-rod","name":"衣柜挂杆高","number_class":"selection",
-           "value_kind":"single","value":null,"formula":"身高 × 1.2","unit":"mm","calibration":"draft","source":"行业通行","version":1},
+           "value_kind":"single","value":null,"formula":"身高 × 1.2","round_to":10,"unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-passage-main","name":"主通道净宽","number_class":"analysis",
            "value_kind":"range","value":{"min":900},"formula":null,"unit":"mm","calibration":"draft","source":"行业通行","version":1},
           {"asset_id":"lkp-tv-distance","name":"电视观看距离","number_class":"analysis",
@@ -188,7 +188,8 @@ class RulebookEvaluationIntegrationTest {
         pkg.releases());
 
     assertEquals(Map.of("min", 900, "max", 950), anchor(pkg, "lkp-counter-height").value());
-    assertEquals(2136L, anchor(pkg, "lkp-wardrobe-rod").value());
+    // round_to 从快照列一路走到落点：1780 × 1.2 = 2136，按声明取整到 10 mm（规则 4.10e 增补）
+    assertEquals(2140L, anchor(pkg, "lkp-wardrobe-rod").value());
     assertFalse(anchor(pkg, "lkp-illuminance-living").degraded());
     assertTrue(anchor(pkg, "lkp-cct-living").degraded());
     // 两层模型在真库快照形态上跑通（规则 1.9，v2.8）：分场景照度是多项落点，正文可引用其中一项；
@@ -325,7 +326,8 @@ class RulebookEvaluationIntegrationTest {
     JsonNode provenance = counter.path("provenance");
     assertTrue(provenance.path("annotationRequired").asBoolean());
     assertEquals("draft", provenance.path("calibration").asText());
-    assertEquals("行业通行", provenance.path("source").asText());
+    // 公式落点的依据 = 推导原文 + 公式出处（2026-09-08 起推导覆盖全部已登记公式）：出处那半仍在线上
+    assertTrue(provenance.path("source").asText().endsWith("公式依据：行业通行"));
     assertTrue(provenance.path("effectiveTo").isNull());
     // withheldAnchors 恒空（v2.4 取消隐藏档）：字段仍在线上形态里，只是永远没有内容
     assertTrue(json.path("withheldAnchors").isEmpty());

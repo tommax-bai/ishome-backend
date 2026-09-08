@@ -153,6 +153,20 @@ case("有源的真区间照常放行——禁的是自造精度声明，不是�
      item(value_kind="range", value="{min: 0.7, max: 0.9}", dimensionless="true"),
      "带自造精度声明", expect_error=False)
 
+# ⑫b 公式点值取整粒度只许出现在公式类条目上（规则 4.10e 增补，用户裁决 2026-09-08）
+case("公式条目声明 round_to 即放行",
+     item(value_kind="single", formula='"身高 × 1.2"', round_to="10", unit="mm"),
+     "round_to", expect_error=False)
+case("直取值条目带 round_to 即拒（规范原值/用户原值不取整）",
+     item(value_kind="single", value="3000", round_to="10", unit="K"),
+     "只许出现在公式类条目上", expect_error=True)
+case("round_to 非正数即拒",
+     item(value_kind="single", formula='"身高 × 1.2"', round_to="0", unit="mm"),
+     "须为正数", expect_error=True)
+case("round_to 无 unit 即拒（粒度随 unit 计）",
+     item(value_kind="single", formula='"占比"', round_to="1", unit="", dimensionless="true"),
+     "而本条无 unit", expect_error=True)
+
 # ⑬ 单位撞禁词的守卫按**本域全部禁词**判（口径订正 2026-08-30）
 def run_with(files: dict[str, str]) -> str:
     """跑真核验，种子目录里额外写几份文件（公共禁词表 / persona）。"""
@@ -194,6 +208,50 @@ unit_case("单位撞域内禁词要拦（组名不是 domain_extra 也要认）"
           common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=True)
 unit_case("不撞就放行", "lx",
           common='methodology: ["依据"]', persona_group='jargon: ["照度"]', expect_error=False)
+
+
+# ⑬b 题名过本域禁词（规则 4.13 增补，用户裁决 2026-09-08）：页脚依据印题名，行话全册扫含脚注
+def name_case(name: str, item_name: str, *, expect_error: bool):
+    out = run_with({
+        "_common/banned-terms.yaml": 'scope: cross-domain\nform: vocabulary\nmethodology: ["依据"]\n',
+        "lighting/persona.yaml": (
+            "domain: lighting\nform: persona\nrelease: null\n"
+            "identity: 灯光顾问\njudgment_style: []\nassertion_budget: []\n"
+            'banned_terms:\n  inherit: _common/banned-terms.yaml\n  jargon: ["照度"]\n'),
+        "lighting/parameters.yaml": (
+            "domain: lighting\nform: parameter\nrelease: null\nitems:\n"
+            f"  - id: lkp-probe\n    name: {item_name}\n    number_class: analysis\n"
+            f"    unit: lx\n    value_kind: single\n    value: 100\n"),
+    })
+    hit = any(line.startswith("ERROR") and "题名「" in line for line in out.splitlines())
+    if hit != expect_error:
+        failures.append(f"{name}: 期望{'报错' if expect_error else '不报错'}，实际：\n{out}")
+    print(f"  {'ok  ' if hit == expect_error else 'FAIL'} {name}")
+
+
+name_case("题名含本域行话即拒（9-07 页脚印出「净宽」的形态）", "走廊照度标准值", expect_error=True)
+name_case("题名含公共软话同拒", "依据走廊亮度", expect_error=True)
+name_case("业主话题名放行", "走廊亮度标准值", expect_error=False)
+
+
+# ⑬c 派生金额取整粒度只许跟着 quantity_basis 出现
+def cost_case(name: str, props: str, *, expect_error: bool):
+    out = run_with({
+        "budget/attributes.yaml": (
+            "domain: budget\nform: attribute\nentity_type: work_item\nrelease: null\nitems:\n"
+            f"  - {{id: attr-price-probe, name: 探针工项, calibration: draft, props: {props}}}\n"),
+    })
+    hit = any(line.startswith("ERROR") and "cost_round_to" in line for line in out.splitlines())
+    if hit != expect_error:
+        failures.append(f"{name}: 期望{'报错' if expect_error else '不报错'}，实际：\n{out}")
+    print(f"  {'ok  ' if hit == expect_error else 'FAIL'} {name}")
+
+
+cost_case("有量、声明到百元即放行",
+          "{unit: ㎡, quantity_basis: building_area_sqm, cost_round_to: 100, price_range: [25, 68]}",
+          expect_error=False)
+cost_case("没有量却声明金额取整即拒",
+          "{unit: ㎡, cost_round_to: 100, price_range: [25, 68]}", expect_error=True)
 
 
 # ⑭ 数据面不许含本域禁词（用户裁决 2026-09-02）——整册首跑头号归因（release 数据自己写着

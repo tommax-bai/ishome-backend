@@ -62,6 +62,9 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
   /**
    * parameter 形态投影：两层模型（规则 1.9，v2.8）三个字段——{@code value_kind} 声明类别、{@code value} 承载标量或项名映射、{@code
    * reference_plane} 接住原先挤在 value 里的参考平面。
+   *
+   * <p>{@code round_to}（V8 起）是公式点值的取整粒度声明；V8 之前的快照没有这一列，读出来是 {@code null}——按"不声明即不取整"
+   * 原样求值，与它们发布时的行为一致。
    */
   private List<ParameterAsset> parameters(JsonNode assets) {
     List<ParameterAsset> parameters = new ArrayList<>();
@@ -75,6 +78,7 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               value(node.path("value")),
               node.path("reference_plane").asText(null),
               node.path("formula").asText(null),
+              node.path("round_to").isNumber() ? node.path("round_to").doubleValue() : null,
               node.path("unit").asText(null),
               node.path("calibration").asText("draft"),
               node.path("source").asText(null),
