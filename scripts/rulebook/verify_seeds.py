@@ -44,6 +44,10 @@ UNITS = {"mm","m","米","米/㎡","K","Ra","°","lx","㎡","投影㎡","延米",
 LOCATOR = re.compile(r"GB[/T ]?\s?\d|JGJ\s?\d|https?://|\.com|\.cn|信息价")
 # check 入册状态（规则 4.17 门禁二；V4 迁移的 ck_checks_status 同集合）
 CHECK_STATUS = {"observing", "active", "retired"}
+# parameter 入册状态（V9 迁移的 ck_parameters_status 同集合；用户裁决 2026-09-09「占比只由算得」，三条搜来的
+# 占比临时锚退役留档）：参数没有观察态，只有在册/退役两值。retired 的 lkp- 不许再被 requires / max_from 引用——
+# 它在快照里但求值线不产落点，挂着它的题目永远背不了书，等于一条悬空引用。
+PARAM_STATUS = {"active", "retired"}
 # —— 两层模型（规则 1.9，规范 v2.8）：一条落点＝若干项，一项的值＝一个数或一个区间 ——
 # value_kind 七值闭集：可引用性与渲染形态都由它判定，不靠推断键名。
 VALUE_KINDS = {"single", "range", "scenario", "tier", "dimension", "component", "comparison"}
@@ -67,6 +71,16 @@ ROUND_TO_KEY = "round_to"
 # 单价资产派生金额（单价 × 量 → lkp-cost-*，规则 5.15）的取整粒度，单位恒为元（估算类金额到百元）。
 # 只许跟着 quantity_basis 出现：没有量就没有金额，声明一个不存在的落点的取整等于写一条没人读的配置。
 COST_ROUND_TO_KEY = "cost_round_to"
+# 金额之上的两样派生（用户裁决 2026-09-09「占比只由算得」，规则 5.15 第 2 节 v2.13）——数据侧只声明三件事：
+#   · share_of：本分项占哪一条单价资产派生金额的比（分母），值是同域一条带 quantity_basis 的 work_item 资产 id；
+#     声明了它、量却还没有的分项，求值线记 gap-「等平面出来按量算」而不填——所以 share_of 写在五条分项上、
+#     不只写在算得出的那条上；
+#   · share_name：占比落点的题名（业主话，上页脚），拼两条资产名会拼出读不通的话，故数据给；同题名过本域禁词；
+#   · share_round_to：占比取整粒度（百分点），只许跟着 share_of 出现；
+#   · grade_breakdown：单价资产自带的低中高三档表，键取 tier 闭集、值是二元区间，只许跟着 quantity_basis 出现
+#     （没量就没有三档合计）。
+SHARE_OF_KEY, SHARE_NAME_KEY, SHARE_ROUND_TO_KEY = "share_of", "share_name", "share_round_to"
+GRADE_BREAKDOWN_KEY = "grade_breakdown"
 # 户型特征标记闭集（规则 6.3 触发字段）的唯一真源在 contracts，本脚本**读它不复制它**：
 # 复制一份就是"注册表与规则数据两套写法"，改一侧不改另一侧即静默失效（同锁定文案注册表纪律三）。
 # 检出路径同 shared/contracts 模块的约定：默认同级检出 ../ishome-contracts，CI 用 contracts-checkout；
@@ -268,7 +282,9 @@ def banned_terms_of(domain_dir: str, docs: dict) -> set[str]:
     return {t for t in terms if isinstance(t, str) and t.strip()}
 
 
-param_ids, check_ids = set(), set()
+param_ids, check_ids, retired_ids = set(), set(), set()
+# 带量的单价资产（quantity_basis）：它们派生金额，也是 share_of 唯一合法的分母
+costed_attr_ids = set()
 files = sorted(glob.glob(os.path.join(SEEDS, "*", "*.yaml")))
 docs = {}
 for f in files:
@@ -278,7 +294,10 @@ for f in files:
 # 收集 id。落点（lkp-）有**两个来源**，与求值线一致：
 #   ① parameters 表的 lkp- 资产；
 #   ② attributes 里 entity_type=work_item 的单价资产**投影**（attr-price-x → lkp-price-x，
-#      规则 5.15 造价章；投影规则的权威实现在 RulebookEvaluator#anchorIdOf，此处按同一条规则镜像）。
+#      规则 5.15 造价章；投影规则的权威实现在 RulebookEvaluator#anchorIdOf，此处按同一条规则镜像）；
+#   ③ 单价资产的**派生**（同在 RulebookEvaluator，costIdOf / shareIdOf）：带 quantity_basis 的派生金额
+#      attr-price-x → lkp-cost-x，再带 grade_breakdown 的派生三档合计 lkp-cost-x-by-grade；带 share_of 的派生
+#      占比 lkp-share-x（量还没有时是 gap-，但它是设计了的落点，requires 挂它合法——量齐了自然背书）。
 # 不镜像就会把 persona 里指向单价落点的 requires 全判成悬空——而它们在运行时是真实存在的落点。
 # 镜像即两处各写一遍同一条规则（Java 求值线 / Python 核验），改投影规则时两处都要动：
 # 两条线本就一个跑运行时一个跑编译期，没有共享代码的位置，宁可显式重复也不发明一层配置。
@@ -287,11 +306,30 @@ for f, d in docs.items():
     entity_type_of_doc = d.get("entity_type")
     for it in d.get("items", []):
         aid = it.get("id","")
-        if aid.startswith("lkp-"): param_ids.add(aid)
+        if aid.startswith("lkp-"):
+            param_ids.add(aid)
+            if it.get("status") == "retired": retired_ids.add(aid)
         if aid.startswith("cr-"): check_ids.add(aid)
         # 文档级 entity_type 优先，与 import_seeds 的取法逐字一致
         if (entity_type_of_doc or it.get("entity_type")) == "work_item" and aid.startswith("attr-"):
             param_ids.add("lkp-" + aid[len("attr-"):])
+            props = it.get("props") or {}
+            stem = aid[len("attr-price-"):] if aid.startswith("attr-price-") else None
+            if props.get("quantity_basis"):
+                costed_attr_ids.add(aid)
+                param_ids.add(f"lkp-cost-{stem}" if stem else f"{aid}-cost")
+                if props.get(GRADE_BREAKDOWN_KEY):
+                    param_ids.add((f"lkp-cost-{stem}" if stem else f"{aid}-cost") + "-by-grade")
+            if props.get(SHARE_OF_KEY):
+                param_ids.add(f"lkp-share-{stem}" if stem else f"{aid}-share")
+
+
+def check_ref(ref: str, ctx: str, what: str):
+    """一条 lkp- 引用：不存在即悬空；已退役同样拒——挂着它的题目永远背不了书。"""
+    if ref in retired_ids:
+        errors.append(f"{ctx}: {what} 引用已退役 {ref}（status: retired，求值线不产落点；改挂接替它的派生条目）")
+    elif ref not in param_ids:
+        errors.append(f"{ctx}: {what} 引用悬空 {ref}")
 
 for f, d in docs.items():
     rel = os.path.relpath(f, SEEDS); d = d or {}
@@ -304,8 +342,7 @@ for f, d in docs.items():
             errors.append(f"{rel}: persona 四件不齐（规则 4.13）")
         for a in d.get("assertion_budget", []):
             for r in a.get("requires", []):
-                if r.startswith("lkp-") and r not in param_ids:
-                    errors.append(f"{rel}: assertion_budget 引用悬空 {r}")
+                if r.startswith("lkp-"): check_ref(r, rel, "assertion_budget")
         continue
     for it in items:
         aid = it.get("id", "?"); ctx = f"{rel}#{aid}"
@@ -313,7 +350,7 @@ for f, d in docs.items():
         if form == "check":
             if not merged.get("decided_by"): errors.append(f"{ctx}: check 缺 decided_by（规则 4.10b）")
             mf = merged.get("max_from")
-            if mf and mf not in param_ids: errors.append(f"{ctx}: max_from 悬空 {mf}")
+            if mf: check_ref(mf, ctx, "max_from")
             st = merged.get("status", "active")
             if st not in CHECK_STATUS: errors.append(f"{ctx}: status 非法 [{st}]，取值 {sorted(CHECK_STATUS)}")
             exs = merged.get("examples") or []
@@ -340,6 +377,10 @@ for f, d in docs.items():
                 if term in str(merged["name"]):
                     errors.append(f"{ctx}: 题名「{merged['name']}」含本域禁词「{term}」——页脚依据印题名，"
                                   f"行话全册扫含脚注（规则 4.13 增补）；改成业主话，id 不改")
+        if form == "parameter":
+            st = merged.get("status", "active")
+            if st not in PARAM_STATUS:
+                errors.append(f"{ctx}: status 非法 [{st}]，参数只有 {sorted(PARAM_STATUS)}（没有观察态）")
         if form == "attribute":
             props = merged.get("props") or {}
             if COST_ROUND_TO_KEY in props:
@@ -349,6 +390,43 @@ for f, d in docs.items():
                                   f"派生金额，声明的是一个不存在的落点的取整")
                 elif not is_number(crt) or crt <= 0:
                     errors.append(f"{ctx}: {COST_ROUND_TO_KEY} 须为正数（元），现为 {crt!r}")
+            # 占比的三件声明（用户裁决 2026-09-09）
+            if SHARE_OF_KEY in props:
+                so = props[SHARE_OF_KEY]
+                if so == aid:
+                    errors.append(f"{ctx}: {SHARE_OF_KEY} 指向自己——分项不能占它自己的比")
+                elif so not in costed_attr_ids:
+                    errors.append(f"{ctx}: {SHARE_OF_KEY} 须指向本域一条带 quantity_basis 的 work_item 单价资产"
+                                  f"（分母要算得出金额），现为 {so!r}")
+                sn = props.get(SHARE_NAME_KEY)
+                if not isinstance(sn, str) or not sn.strip():
+                    errors.append(f"{ctx}: 声明了 {SHARE_OF_KEY} 须同时给 {SHARE_NAME_KEY}（占比落点的题名，业主话）")
+                else:
+                    dom_dir = os.path.basename(os.path.dirname(f))
+                    for term in sorted(banned_terms_of(dom_dir, docs)):
+                        if term in sn:
+                            errors.append(f"{ctx}: {SHARE_NAME_KEY}「{sn}」含本域禁词「{term}」——它是题名、上页脚")
+            elif SHARE_NAME_KEY in props or SHARE_ROUND_TO_KEY in props:
+                errors.append(f"{ctx}: {SHARE_NAME_KEY}/{SHARE_ROUND_TO_KEY} 只许跟着 {SHARE_OF_KEY} 出现")
+            if SHARE_ROUND_TO_KEY in props:
+                srt = props[SHARE_ROUND_TO_KEY]
+                if not is_number(srt) or srt <= 0:
+                    errors.append(f"{ctx}: {SHARE_ROUND_TO_KEY} 须为正数（百分点），现为 {srt!r}")
+            # 三档表：键取 tier 闭集、值是二元区间，只许跟着 quantity_basis 出现
+            if GRADE_BREAKDOWN_KEY in props:
+                gb = props[GRADE_BREAKDOWN_KEY]
+                if not props.get("quantity_basis"):
+                    errors.append(f"{ctx}: {GRADE_BREAKDOWN_KEY} 只许跟着 quantity_basis 出现——没有量就没有三档合计")
+                if not isinstance(gb, dict) or not gb:
+                    errors.append(f"{ctx}: {GRADE_BREAKDOWN_KEY} 须为 档名 → [low, high] 的映射")
+                else:
+                    bad = [k for k in gb if k not in TIER_ITEMS]
+                    if bad:
+                        errors.append(f"{ctx}: {GRADE_BREAKDOWN_KEY} 档名越界 {bad}，闭集 {list(TIER_ITEMS)}"
+                                      f"（规则 1.9 三；源里的「基础/中档/高端」登记在 source 原句，键用闭集名）")
+                    for k, v in gb.items():
+                        if not (isinstance(v, list) and len(v) == 2 and all(is_number(x) for x in v)):
+                            errors.append(f"{ctx}: {GRADE_BREAKDOWN_KEY}.{k} 须为 [low, high] 二元数值区间")
         if form == "rule":
             # 户型特征触发的标记名必须 ∈ 闭集（契约 rulebook/layout_features.md §四，两侧校验的核验侧）。
             # 越界或缺名都拦在入库前：求值线的匹配语义是"键存在即触发"，键名写错既不触发也不报错——

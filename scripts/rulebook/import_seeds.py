@@ -19,7 +19,11 @@ import os, sys, glob, subprocess, yaml, psycopg
 from ulid import ULID
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SEEDS = os.path.join(HERE, "..", "..", "services/project-svc/src/main/resources/rulebook-seeds")
+# 种子目录可经 ISHOME_SEEDS_PATH 覆盖（同 verify_seeds 的既有约定；子进程继承环境，核验与灌库看同一棵树）：
+# 多 session 共用工作区时别的 session 在途未提交的种子改动不该随本次发版进库——把"提交态 + 本次改动"
+# 复制成一棵干净的树指过去，灌的就只是自己这一笔。
+SEEDS = os.environ.get("ISHOME_SEEDS_PATH") or os.path.join(
+    HERE, "..", "..", "services/project-svc/src/main/resources/rulebook-seeds")
 MIGRATION_GLOB = os.path.join(HERE, "..", "..",
     "services/project-svc/src/main/resources/db/migration/V*__*.sql")
 SCHEMA = "svc_rulebook"
@@ -109,6 +113,9 @@ def rows():
                     formula=m.get("formula"), unit=str(unit) if unit else None,
                     # 公式点值取整粒度（V8 列，规则 4.10e 增补）：只有公式类条目才有，核验已拦住别处出现
                     round_to=m.get("round_to"),
+                    # 入册状态（V9 列，用户裁决 2026-09-09）：retired=裁定不再下发、原值留档，求值线整条跳过；
+                    # 缺省 active。与 check 的 status 不是同一状态机（参数没有观察态）。
+                    status=m.get("status", "active"),
                     linked=J(m.get("linked")) if m.get("linked") else None,
                     calibration="draft", source=m.get("source"), source_pending=m.get("source_pending"),
                     conflict=bool(m.get("conflict", False)),

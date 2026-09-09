@@ -1,12 +1,26 @@
 domain: ergonomics
 form: check
 inherit: _common/checks.yaml
+# 本域三条里两条随 2026-09-09 批量退役下线（第一类·真空档）；cr-ergo-size-source 属"部分承接"，
+# 用户尚未表态，**本批不动**。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
+# 证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——今天没有任何代码在做这 12 项
+  # 逐项比对，**不是被别处承接了才退的**；而且它的输入本身还不存在（逐项实测值要从定稿平面算，
+  # 布局线今天没通）。先去掉、保持开放，要不要补看后续真跑样本。
   - {id: cr-ergo-passage-pass, type: threshold_all, scope: [art-plan-final],
+     version: 2, status: retired,
      require: "12 项通道校核逐项与 lkp-* 比对；未过项置顶并在 art-plan-final 标注位置（规则 5.4）",
-     message: "人体工学校核未过项未置顶", decided_by: "规范规则 5.4"}
+     message: "人体工学校核未过项未置顶",
+     decided_by: "规范规则 5.4；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——"定制尺寸表有没有被折叠"是渲染层
+  # 的呈现形态，今天没有任何代码在判，**不是被别处承接了才退的**。
   - {id: cr-ergo-size-table-expanded, type: presentation, scope: [art-ergonomics-chapter],
+     version: 2, status: retired,
      require: "定制尺寸表恒展开，不得折叠——它是表达件不是校核结论（规则 5.4）",
-     message: "定制尺寸表被折叠", decided_by: "规范规则 5.4"}
+     message: "定制尺寸表被折叠",
+     decided_by: "规范规则 5.4；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # 不在 2026-09-09 批量退役射程内：属"部分承接"四条之一（verify_seeds 只把空 source 记成警告、
+  # 发版拦不住，成文线这一层没有对应检查），用户尚未表态。
   - {id: cr-ergo-size-source, type: cross_field, scope: [art-ergonomics-chapter],
      require: "每项定制尺寸须带 source（parameter 形态）", message: "定制尺寸缺 source", decided_by: "规范规则 5.4/4.10"}

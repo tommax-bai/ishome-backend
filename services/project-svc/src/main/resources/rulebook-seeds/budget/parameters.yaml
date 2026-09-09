@@ -9,12 +9,22 @@ form: parameter
 release: null
 default_calibration: draft
 items:
+  # ★ 三条退役（用户裁决 2026-09-09，规则 5.15 第 2 节 v2.13「占比只由算得」）：占比＝该项金额 ÷ 总价、金额＝
+  # 单价 × 这家的量；三档＝单价资产自带的低中高三档 × 量；主驱动项＝金额最大的分项、量齐了自然得出。用户原话：
+  # 「占比多少的话，我们是不是不需要去用搜索的数据？而是基于单价算项的价格然后算出总价，再看每个项价格在总价中
+  # 的占比就可以了，而不是通过公开的信息去搜索大家装修的时候的占比。」下面三条 8-27 起从公开行情文章搜来的
+  # "大家装修时的占比/倍数"自此退役：version 升、status: retired，**原值一字不动留档**（release 不可变、回滚＝切回
+  # 旧 tag，表要照实说）；灌库照写、快照照带、求值线对 retired 条目不产落点也不记 gap-（V9 迁移）。
+  # 接替它们的落点在求值线派生：lkp-share-<分项>（金额 ÷ 合计）、lkp-cost-hardfit-total-sqm-by-grade（三档 × 量），
+  # 数据侧只声明分母与三档表（attributes.yaml 的 share_of / grade_breakdown）。
+  #
   # 比率改百分数（用户裁决 2026-08-31，四域一批，判据见 softdeco/parameters.yaml 该批首条注释）：
   # 量没变，0.03–0.08 就是 3%–8%；立案＝真跑成册逐字「让 0.2–0.35、0.15–0.25 … 更容易成为支出主力」。
   # 本条尤其该改：**source 引文自己写的就是百分数**（「硬装≈50%［45,60］/软装［25,30］」），
   # 存成小数是编译时自己折算过一次。★ source_pending 里那条"禁止用粗档口径换算成七分项"
   # 说的是**口径互斥不许跨口径推**，与本次改记数形态不是一件事——七分项的值一个都没动。
   - {id: lkp-budget-share, name: 分项造价占比带, number_class: analysis, unit: "%",
+     version: 2, status: retired,
      value_kind: component,
      value: {demolition: {min: 3, max: 8}, plumbing-electrical: {min: 8, max: 15},
              masonry-carpentry: {min: 15, max: 25}, painting: {min: 5, max: 10},
@@ -29,8 +39,10 @@ items:
   # 现状不产出落点（公式无可执行形态登记，走 gap-）；形态待裁，裁前不给它安一个假的 value_kind。
   # 题名去「总价」（用户裁决 2026-09-08，规则 4.13 增补）：「总价」是本域禁词（deal 组），题名会上页脚。
   - {id: lkp-budget-driver, name: 花钱大头分项判定, number_class: analysis, dimensionless: true,
+     version: 2, status: retired,
      formula: "占比最高且量可变的分项（通常为定制延米或主材档位）"}
   - {id: lkp-budget-tier-gap, name: 三档情景价差带, number_class: analysis, value_kind: comparison,
+     version: 2, status: retired,
      value: {medium-vs-low: {min: 1.3, max: 1.8}, high-vs-medium: {min: 1.4, max: 2.2}}, unit: 倍,
      source: "首个外部粗锚（run-2026-08-27）：公开行情整装档位 简装 1000-1500 / 精装 2000-2500 / 豪装 3000+ 元/㎡（土巴兔 z349188 等）→ 精/简 ≈1.7-2.0、豪/精 ≥1.2，与本区间部分重叠",
      source_pending: "由 attr-price-* 三档用材差算出精确带，不写死"}

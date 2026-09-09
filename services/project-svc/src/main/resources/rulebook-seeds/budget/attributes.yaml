@@ -2,6 +2,13 @@
 # 数据源裁决（用户 2026-08-23）：公开数据起步，置信按 source 分级
 # 2026-08-27 获取回路首跑（run-2026-08-27）：四项全部接上公开行情，置信 low → 区间放宽
 # （lkp-budget-confidence-width: low=±50%）。仍为 draft——核验跑批未建，跑批后可转 calibrated。
+# 2026-09-09（用户裁决「占比只由算得」，规则 5.15 第 2 节 v2.13）：占比与三档不再搜，由求值线从本表派生——
+#   · share_of：本分项占哪一条派生金额的比（分母＝attr-price-hardfit-total-sqm 的"单价 × 建筑面积"）；写在
+#     五条分项上：算得出金额的（水电人工）出 lkp-share-*，量还没有的四条求值线记 gap-「等平面出来按量算」，不填；
+#   · share_name：占比落点题名（业主话，上页脚，过本域禁词）；share_round_to：占比取整到整数百分点（2026-09-08
+#     "公式取整按数据逐条声明"的同一条口径，只在算得出的那条上声明）；
+#   · grade_breakdown：三档单价表，键改为 tier 闭集名 low/medium/high（契约 anchor_items §两层模型），源里的
+#     「基础/中档/高端」原句留在 source_3；求值线派生 lkp-cost-hardfit-total-sqm-by-grade＝各档 × 建筑面积。
 domain: budget
 form: attribute
 entity_type: work_item
@@ -19,7 +26,8 @@ items:
     calibration: draft
     props: {unit: ㎡, price_range: [20, 60], city_tier: 全国粗档, confidence: low,
             effective_from: 2026-08-27, effective_to: 2026-11-27,
-            breakdown: {普通墙: [20, 30], 砖混墙: [30, 40], 混凝土墙: [40, 60]}}
+            breakdown: {普通墙: [20, 30], 砖混墙: [30, 40], 混凝土墙: [40, 60]},
+            share_of: attr-price-hardfit-total-sqm, share_name: 墙体拆除费占全屋硬装花费的比例}
     source: "装信通 zx123.cn/zxbk/2392615（2025 拆除报价明细）"
     source_2: "知乎 zhuanlan.zhihu.com/p/9402395749（2025 人工材料清单；含铲墙皮打包价 80 元/㎡，口径不同已拆分）"
     note: "两源口径有别（纯拆除 vs 打包），取纯拆除口径入区间"
@@ -28,7 +36,8 @@ items:
     name: 水电点位（开关/插座/水口各计一位）
     calibration: draft
     props: {unit: 点位, price_range: [150, 500], city_tier: 全国粗档, confidence: low,
-            effective_from: 2026-08-27, effective_to: 2026-11-27}
+            effective_from: 2026-08-27, effective_to: 2026-11-27,
+            share_of: attr-price-hardfit-total-sqm, share_name: 水电点位费占全屋硬装花费的比例}
     source: "m.sohu.com/a/1025834698_122469136 与 zx123.cn/2021/1220/2353557（每点位 150-300 元；100㎡ 约 50-70 位）"
     source_2: "m.shejiben.com/ask/wenda/143518 与 m.jia.com/wenda/a-476738（每位 200-500 元）"
     note: "两源重叠区 200-300；区间取并集、置信 low。另一计价口径：按面积 90-120 元/㎡ 全屋"
@@ -38,7 +47,8 @@ items:
     calibration: draft
     props: {unit: 投影㎡, price_range: [800, 1800], city_tier: 全国粗档, confidence: low,
             effective_from: 2026-08-27, effective_to: 2026-11-27,
-            breakdown: {经济: [800, 1000], 中端: [1000, 1300], 高端: [1300, 1800], 高定下限: 1800}}
+            breakdown: {经济: [800, 1000], 中端: [1000, 1300], 高端: [1300, 1800], 高定下限: 1800},
+            share_of: attr-price-hardfit-total-sqm, share_name: 定制柜费用占全屋硬装花费的比例}
     source: "知乎 zhuanlan.zhihu.com/p/2036013911363860056（2026 全屋定制盘点，投影面积四档）"
     source_2: "新浪财经 k.sina.cn/article_7857141524_1d452771401901o962（2025 定制成本；实例 30㎡ 柜体中档约 4.2 万 ≈ 1400 元/投影㎡，与档表自洽）"
     note: "单位从'延米'改为源生口径'投影㎡'——延米换算依赖柜高假设，不做推导（规则 4.16 可定位原则）；★ 总价主驱动项，第二优先补城市档"
@@ -61,7 +71,8 @@ items:
     calibration: draft
     props: {unit: ㎡, quantity_basis: building_area_sqm, cost_round_to: 100, price_range: [25, 68], city_tier: 分档见 breakdown, confidence: low,
             effective_from: 2026-08-28, effective_to: 2026-11-28,
-            breakdown: {一线: [60, 68], 二线: [35, 58], 三四线: [25, 50]}}
+            breakdown: {一线: [60, 68], 二线: [35, 58], 三四线: [25, 50]},
+            share_of: attr-price-hardfit-total-sqm, share_name: 水电改造人工费占全屋硬装花费的比例, share_round_to: 1}
     source: "图纸之家 tuzhizhijia.com/fangchan/8468（2023 全国 43 份水电报价：上海 60/北京 68/深广 68/天津 58/长沙武汉 55/渝蓉 35/贵州 25-35/金华 50/杭州 40-50）"
     source_2: "尚美饰家 m.smsj.com/strategy/30877-23547（全国 37 地水电施工队价格）+ 搜狐 m.sohu.com/a/1025834698（2026 报价，墙面打孔另算约 50 元/个）"
     note: "★ 城市档首次取得（run-2026-08-28）——一线约为三四线 2-3 倍。与 attr-price-electrical-point 点位口径并存，禁跨口径换算；43 份样本跨 2023-2026，置信 low"
@@ -75,7 +86,9 @@ items:
   #   · 与 lkp-budget-tier-gap 引的"整装 简装 1000-1500/精装 2000-2500"是另一口径（含软装），不并；
   #   · 三档＝城市档（一线/二线/三四线），键面照 attr-price-hydro-labor-sqm 逐字命中；三四线只取到一源，
   #     以淮安（全包 850-1050）、惠州（中等全包 1100-1500）两个城市实例作旁证；
-  #   · 低中高档只取到**全国粗档**（grade_breakdown，土巴兔 2025-09-29），城市档 × 档位的交叉表没有源，不推。
+  #   · 低中高档只取到**全国粗档**（grade_breakdown，土巴兔 2025-09-29），城市档 × 档位的交叉表没有源，不推；
+  #     键用 tier 闭集名 low/medium/high（2026-09-09 改，源词「基础/中档/高端」在 source_3 原句里），求值线按
+  #     各档 × 建筑面积派生三档合计，推导原文如实写"只有档一维、不分城市"。
   #   · 按㎡报价的行业惯例分母是建筑面积，源未逐字声明——quantity_basis 记 building_area_sqm 是取惯例，写在这里。
   # cost_round_to 到百元照 2026-09-08 拍板"估算类金额到百元"；这条派生金额跨十万级（110 ㎡ 约 5.5-33 万），
   # 百元位已是假精度，到千元更合适——只在此建议，口径未改。
@@ -85,7 +98,7 @@ items:
     props: {unit: ㎡, quantity_basis: building_area_sqm, cost_round_to: 100, price_range: [500, 3000], city_tier: 分档见 breakdown, confidence: low,
             effective_from: 2026-09-08, effective_to: 2026-12-08,
             breakdown: {一线: [1000, 3000], 二线: [800, 2000], 三四线: [500, 1500]},
-            grade_breakdown: {基础: [800, 1200], 中档: [1200, 1800], 高端: [2000, 3000]}}
+            grade_breakdown: {low: [800, 1200], medium: [1200, 1800], high: [2000, 3000]}}
     source: "土巴兔装修大学 to8to.com/yezhu/z338598.html（2025-11-04，取数 2026-09-08）：「一线城市普通住宅硬装报价每平方米约1000-3000元，二线城市则在800-2000元区间波动」；同文转载于新浪 k.sina.com.cn/article_7857141524_1d452771401901wi28.html（2026-04-15）"
     source_2: "网易 c.m.163.com/news/a/KIK0HVJ60520LP4V.html（2026-01-06，取数 2026-09-08）：「一线城市全包装修均价1500-2500元/㎡，二三线800-2000元/㎡，三四线500-1500元/㎡」；同文「惠州中等装修全包1100-1500元/㎡」"
     source_3: "档位（全国粗档）土巴兔装修大学 to8to.com/yezhu/z329454.html（2025-09-29，取数 2026-09-08）：全包「基础装修 800-1200元/㎡ / 中档装修 1200-1800元/㎡ / 高端装修 2000-3000元/㎡及以上」"
@@ -96,7 +109,8 @@ items:
     name: 墙面乳胶漆涂刷
     calibration: draft
     props: {unit: ㎡, price_range: [10, 20], city_tier: 全国粗档, confidence: low,
-            effective_from: 2026-08-27, effective_to: 2026-11-27}
+            effective_from: 2026-08-27, effective_to: 2026-11-27,
+            share_of: attr-price-hardfit-total-sqm, share_name: 墙面乳胶漆涂刷费占全屋硬装花费的比例}
     source: "知乎 zhuanlan.zhihu.com/p/9402395749（10-20 元/㎡）"
     source_2: "尚美饰家 m.smsj.com/strategy/70811（10 元/㎡）"
     note: "疑为人工（或人工+辅料）口径，主材（漆）另计——口径待第二轮核明"

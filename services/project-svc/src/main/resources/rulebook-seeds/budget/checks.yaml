@@ -7,21 +7,32 @@ items:
   - {id: cr-price-commitment, type: regex_deny, scope: [art-budget-chapter],
      pattern: "总价|全包价|这个价能做|包工包料|约为\\s*\\d+\\s*万", message: "本章禁精确总价与成交承诺",
      decided_by: "规范规则 5.15（用户裁决 2026-08-23）"}
-  - {id: cr-budget-no-commerce, type: field_deny, scope: [art-budget-chapter],
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——今天没有任何代码在查造价章
+  # 有没有商品挂载，**不是被别处承接了才退的**。先去掉、保持开放，要不要补看后续真跑样本。
+  # 全批口径见 _common/checks.yaml 顶部「2026-09-09 批量退役」。
+  - {id: cr-budget-no-commerce, type: field_deny, scope: [art-budget-chapter], version: 2, status: retired,
      require: "本章不得出现任何商品挂载", message: "监督类产物植入商品",
-     decided_by: "规范规则 9.2（监督/博弈类产物中立性禁令）"}
+     decided_by: "规范规则 9.2（监督/博弈类产物中立性禁令）；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
   # v2.4 改口径（裁决 2026-08-29，version 1 → 2）：原 require 写的是"越界即降档为仅出结构占比、
   # 不出金额"，规则 5.15 已把这条整句作废——过期的行情仍是当时的真实行情，标了取数时间业主自己会
   # 折算，抹掉金额反而少给他一个判断维度。**违规形态因此反了个向**：从"过期还出金额"变成
   # "出了金额却没标取数时间与来源"。判据 id 不改：名字说的是"陈旧单价"，纪律仍在管这件事，
   # 变的是怎么处置（对照"名字说假话就 retire"的 cr-draft-not-in-paid——那条是名字本身作废了）。
-  - {id: cr-budget-stale-price, type: cross_field, scope: [art-budget-chapter], version: 2,
+  #
+  # retired（用户裁决 2026-09-09，version 2 → 3）：**第二类·完整承接**——上面那段 v2 改口径把违规形态
+  # 改成"出了金额却没标取数时间与来源"，而这件事逐字由册级的 gate-provenance-annotation-missing
+  # （activities.py:432-445，按数据包 provenance 逐页比对要求集与挂载集）执行；这条数据行本身无
+  # pattern 无 examples，从来没有执行路径。同一件事不两处声明，留代码那侧。
+  - {id: cr-budget-stale-price, type: cross_field, scope: [art-budget-chapter], version: 3, status: retired,
      require: "任一消费的 attr-price-* 若 effective_to 越界，金额照常出，但该页必须挂它的取数时间与来源标注（provenance.annotationRequired 已在求值线判定，页级标注比对门禁执行）",
      message: "过期单价出了金额却没标取数时间与来源",
-     decided_by: "规范规则 5.15（v2.4 裁决 2026-08-29：过期照常出金额+标注取数时间，原「仅出结构占比」作废）"}
-  - {id: cr-budget-range-width, type: cross_field, scope: [art-budget-chapter],
+     decided_by: "规范规则 5.15（v2.4 裁决 2026-08-29：过期照常出金额+标注取数时间，原「仅出结构占比」作废）；用户裁决 2026-09-09 退役（第二类完整承接：判据由 reportgen gate-provenance-annotation-missing 执行，同一件事不两处声明。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——"按置信档比区间宽度"今天没有
+  # 任何代码在执行，**不是被别处承接了才退的**。先去掉、保持开放，要不要补看后续真跑样本。
+  # 全批口径见 _common/checks.yaml 顶部「2026-09-09 批量退役」。
+  - {id: cr-budget-range-width, type: cross_field, scope: [art-budget-chapter], version: 2, status: retired,
      require: "区间宽度须与该条 confidence 匹配（lkp-budget-confidence-width）", message: "低置信数据给了窄区间",
-     decided_by: "规范规则 5.15（区间宽度随置信调整，用户裁决 2026-08-23）"}
+     decided_by: "规范规则 5.15（区间宽度随置信调整，用户裁决 2026-08-23）；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
   # scope 从卡片级上移到**册级**（图 v0.2 §4 三作用域第三档，位置=渲染前；2026-08-28 改）。依据三条：
   #   ① **形态判据**：本条是 presence_require——"产物里必须有 DISCLAIM_PRICE 锁定文案"，约束的是装配
   #      结果有没有这件东西，不是某张卡片怎么写。装配是页/册级的活（图 v0.2 §2：页面装配是唯一知道
@@ -34,6 +45,12 @@ items:
   #      也没有可挂免责文案的字段。册级（渲染前）是最后一个能停下来、也是唯一看得见整册的地方。
   # 保留 art-budget-chapter：作用域上移改的是"在哪一层判"，不改"判哪个产物"。
   # 只改 scope 与本注释；decided_by 不动——纪律本体未变，仍锚规则 5.15（挂错层是落位问题，不是裁决变更）。
-  - {id: cr-budget-disclaimer, type: presence_require, scope: [册级, art-budget-chapter],
+  #
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第二类·完整承接**——上面 ③ 说的"零拦截"已经补上了，
+  # 补的位置就是它指的册级：gate-locked-text-missing（activities.py:415-427）按数据包的锁定清单
+  # 逐条验齐。册级代码里另有一段注释写明**不执行 presence_require 判据**——它的 requirement 是给人读的
+  # 自然语言，从中抠 ID 等于发明一套表达式语法（禁止项）；要挂哪条以数据包锁定清单为唯一口径。
+  # 即这条数据行结构上就执行不了，语义已整条落在代码侧，留着只会是第二处声明。
+  - {id: cr-budget-disclaimer, type: presence_require, scope: [册级, art-budget-chapter], version: 2, status: retired,
      require: "DISCLAIM_PRICE 锁定文案必挂（gen-locked，引用文案 ID）", message: "造价章缺 DISCLAIM_PRICE",
-     decided_by: "规范规则 5.15"}
+     decided_by: "规范规则 5.15；用户裁决 2026-09-09 退役（第二类完整承接：判据由 reportgen gate-locked-text-missing 执行，同一件事不两处声明。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}

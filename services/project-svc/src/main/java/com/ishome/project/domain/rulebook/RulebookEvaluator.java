@@ -24,6 +24,11 @@ import java.util.TreeSet;
  * 落点对象带的是取整后的值，故任何读落点的下游公式拿到的都是取整后的值（业主看到的输入输出对得上）。渲染层一字不动。 单价 × 量的派生金额同理，粒度由单价资产的 {@code
  * props.cost_round_to} 声明（元）。
  *
+ * <p>金额之上再派生两样（用户裁决 2026-09-09「占比只由算得」，规则 5.15 第 2 节 v2.13）：①**占比**（{@code lkp-share-*}）＝ 该项金额 ÷
+ * 总额，两端各自算（min＝金额 min ÷ 总额 max，max＝金额 max ÷ 总额 min），分母由单价资产的 {@code props.share_of} 指名；
+ * ②**三档合计**（{@code lkp-cost-*-by-grade}）＝ 单价资产自带的 {@code props.grade_breakdown} 各档 × 量。两样都不用搜来的
+ * "大家装修时的占比"与倍数；没有金额的分项占比记 gap-（"等平面出来按量算"，规则 4.18），不填。
+ *
  * <p>落点有**两个来源**：parameters（上述三条路径）与 attributes 里 {@code entity_type=work_item} 的 单价资产（{@link
  * #projectWorkItemPrice}，规则 5.15 造价章——造价章的数字全在单价库，不在参数表）。 两者产出的落点对象形态完全一致，成文线不区分来源。
  *
@@ -155,6 +160,12 @@ public final class RulebookEvaluator {
       for (AttributeAsset attribute : snapshot.attributes()) {
         projectWorkItemPrice(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
         projectWorkItemCost(attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
+        projectWorkItemCostByGrade(
+            attribute, snapshot.releaseTag(), input, evaluatedOn, anchors, gaps);
+      }
+      // 占比要等本域全部金额算完再除：分母（总额）与分子（分项）都是上一步的产物
+      for (AttributeAsset attribute : snapshot.attributes()) {
+        projectWorkItemShare(attribute, snapshot, evaluatedOn, anchors, gaps);
       }
     }
     anchors.sort(Comparator.comparing(ReportAnchor::lkpId));
@@ -395,6 +406,272 @@ public final class RulebookEvaluator {
   /** 单价资产声明的派生金额取整粒度（元）；缺席即不取整（规则 4.10e 增补）。 */
   private static final String COST_ROUND_TO_KEY = "cost_round_to";
 
+  /** 单价资产自带的档位单价表（低/中/高三档），键取 tier 闭集（规则 1.9 三），值是 {@code [low, high]}。 */
+  private static final String GRADE_BREAKDOWN_KEY = "grade_breakdown";
+
+  /** 档位闭集**有序**：low < medium < high（contracts anchor_items §两层模型；三档合计的项按此序下发）。 */
+  private static final List<String> TIER_ITEMS = List.of("low", "medium", "high");
+
+  /** 三档合计的值类别：每档一项、项名取 tier 闭集，一项的值是区间。 */
+  private static final String VALUE_KIND_TIER = "tier";
+
+  /** 占比的分母：本分项占**哪一条**单价资产派生金额的比——数据指名，代码不猜"哪条是总额"。 */
+  private static final String SHARE_OF_KEY = "share_of";
+
+  /** 占比落点的题名（业主话）：拼两条资产名会拼出一句读不通的话，故由数据给。 */
+  private static final String SHARE_NAME_KEY = "share_name";
+
+  /** 占比的取整粒度（百分点）；缺席即不取整。 */
+  private static final String SHARE_ROUND_TO_KEY = "share_round_to";
+
+  /** 占比的记数单位。 */
+  private static final String SHARE_UNIT = "%";
+
+  /**
+   * 占比的最小记数位：**百分之一个百分点**。商是无限小数，总得停在某一位——同金额"先到元再按声明取整"，占比先到 0.01 个百分点 再按 {@code share_round_to}
+   * 取整；推导原文里取整前的数也印到这一位。
+   */
+  private static final int SHARE_SCALE = 2;
+
+  /**
+   * 单价资产自带三档 × 这一户的量 = **三档合计**（{@code lkp-cost-*-by-grade}）。
+   *
+   * <p>用户裁决 2026-09-09：三档＝单价资产自带的低中高三档 × 量，**不用搜来的倍数**（原 lkp-budget-tier-gap 退役）。 档位单价是单价资产的 {@code
+   * grade_breakdown}，键必须是 tier 闭集的三个名（核验拦，此处只认闭集内的键）；量与取整粒度和金额那条完全同源 （{@code quantity_basis} /
+   * {@code cost_round_to}）。没有 {@code grade_breakdown} 的资产不产、也不记 gap-（同金额：没设计的产物不承诺）；
+   * 有档表却没量的，金额那条已记了 missing_input，这里不再记第二条。
+   *
+   * <p>档表是不是分城市的，由它的结构说：{@code grade_breakdown} 只有档一维、没有城市一维，推导原文如实写"不分城市"。
+   */
+  private void projectWorkItemCostByGrade(
+      AttributeAsset attribute,
+      String releaseTag,
+      EvaluationInput input,
+      LocalDate evaluatedOn,
+      List<ReportAnchor> anchors,
+      List<GapRecord> gaps) {
+    if (!ENTITY_TYPE_WORK_ITEM.equals(attribute.entityType())) {
+      return;
+    }
+    Object basis = attribute.props().get("quantity_basis");
+    if (basis == null
+        || !(attribute.props().get(GRADE_BREAKDOWN_KEY) instanceof Map<?, ?> grades)) {
+      return;
+    }
+    Double quantity = quantityOf(basis.toString(), input);
+    if (quantity == null) {
+      return;
+    }
+    String gradeId = costIdOf(attribute.assetId()) + "-by-grade";
+    Map<String, Object> unitPrices = new LinkedHashMap<>();
+    Map<String, Object> exact = new LinkedHashMap<>();
+    for (String tier : TIER_ITEMS) {
+      Map<String, Object> band = rangeOf(grades.get(tier));
+      if (band == null) {
+        continue;
+      }
+      unitPrices.put(tier, band);
+      Map<String, Object> amount = new LinkedHashMap<>();
+      amount.put("min", Math.round(quantity * ((Number) band.get("min")).doubleValue()));
+      amount.put("max", Math.round(quantity * ((Number) band.get("max")).doubleValue()));
+      exact.put(tier, amount);
+    }
+    if (exact.isEmpty()) {
+      gaps.add(new GapRecord(gradeId, releaseTag, "empty_definition", "档位单价表没有一档是 tier 闭集内的二元区间"));
+      return;
+    }
+    Double costRoundTo =
+        attribute.props().get(COST_ROUND_TO_KEY) instanceof Number g ? g.doubleValue() : null;
+    Map<String, Object> value = new LinkedHashMap<>();
+    exact.forEach((tier, amount) -> value.put(tier, roundTo(amount, costRoundTo)));
+    anchors.add(
+        new ReportAnchor(
+            gradeId,
+            attribute.name() + "分三档合计",
+            NUMBER_CLASS_ANALYSIS,
+            "元",
+            VALUE_KIND_TIER,
+            value,
+            null,
+            releaseTag,
+            "求值线按「各档单价 × 量」算出（档位是单价资产自带的三档，只有档一维、不分城市）：档位单价 "
+                + tierText(unitPrices)
+                + " 元/"
+                + attribute.props().get("unit")
+                + " × "
+                + basis
+                + " "
+                + quantity
+                + " ＝ "
+                + tierText(exact)
+                + (costRoundTo == null
+                    ? ""
+                    : "，取整到 " + text(costRoundTo) + " 元 ＝ " + tierText(value))
+                + "。三档差在哪只由这三个区间说，不引用任何搜来的倍数。",
+            attribute.calibration(),
+            isDegraded(attribute.calibration()),
+            provenancePolicy.decide(
+                attribute.source(),
+                attribute.effectiveFrom(),
+                attribute.effectiveTo(),
+                attribute.calibration(),
+                evaluatedOn),
+            presentationPolicy.decide(attribute.calibration())));
+  }
+
+  /** 推导原文里的档位表："low 800–1200 / medium 1200–1800 / high 2000–3000"。 */
+  private static String tierText(Map<String, Object> byTier) {
+    StringBuilder sb = new StringBuilder();
+    byTier.forEach(
+        (tier, v) -> {
+          if (!sb.isEmpty()) {
+            sb.append(" / ");
+          }
+          sb.append(tier).append(' ').append(text(v));
+        });
+    return sb.toString();
+  }
+
+  /**
+   * 分项金额 ÷ 总额 = **占比**（{@code lkp-share-*}）。用户裁决 2026-09-09：占比只由算得，不由搜得。
+   *
+   * <p>分母由数据指名（{@code props.share_of} = 总额那条单价资产的 id）：哪一条是"总额"不是代码能猜的事——它与 {@code quantity_basis}
+   * 同一条理由（配置只放数据，逻辑归服务）。两端各自算：min＝分项 min ÷ 总额 max，max＝分项 max ÷ 总额 min，
+   * 区间随两侧的宽度一起宽，不缩。除的是**取整后的金额落点**（业主看到的输入输出对得上）。
+   *
+   * <p>声明了 {@code share_of} 却算不出金额的分项（量还不存在：拆除面积/点位数/柜体投影/涂刷面积等定稿平面）**记 gap-、不填**—— 这与金额那条"没设计的产物不记
+   * gap-"不冲突：{@code share_of} 写上去，这条产物就是设计了的，缺的是量，按规则 4.18 坦白 "等平面出来按量算"。总额自己算不出时同样记 gap-（分母都没有）。
+   *
+   * <p>可核性与时效取两条资产的**交集**：两条都 calibrated 才 calibrated；时效窗取两窗的交（起取晚者、止取早者）——占比不可能比 它的任一输入更硬、更新。
+   */
+  private void projectWorkItemShare(
+      AttributeAsset attribute,
+      ReleaseSnapshot snapshot,
+      LocalDate evaluatedOn,
+      List<ReportAnchor> anchors,
+      List<GapRecord> gaps) {
+    if (!ENTITY_TYPE_WORK_ITEM.equals(attribute.entityType())) {
+      return;
+    }
+    Object shareOf = attribute.props().get(SHARE_OF_KEY);
+    if (shareOf == null) {
+      return;
+    }
+    String releaseTag = snapshot.releaseTag();
+    String shareId = shareIdOf(attribute.assetId());
+    ReportAnchor part = anchorById(anchors, costIdOf(attribute.assetId()));
+    if (part == null) {
+      gaps.add(
+          new GapRecord(shareId, releaseTag, "missing_input", "等平面出来按量算：这一项的量还没有，金额算不出，占比也就没有"));
+      return;
+    }
+    ReportAnchor total = anchorById(anchors, costIdOf(shareOf.toString()));
+    AttributeAsset totalAsset =
+        snapshot.attributes().stream()
+            .filter(a -> a.assetId().equals(shareOf.toString()))
+            .findFirst()
+            .orElse(null);
+    if (total == null || totalAsset == null) {
+      gaps.add(
+          new GapRecord(shareId, releaseTag, "missing_input", "分母 " + shareOf + " 的金额算不出，占比没有分母"));
+      return;
+    }
+    if (!(part.value() instanceof Map<?, ?> p)
+        || !(total.value() instanceof Map<?, ?> t)
+        || !(p.get("min") instanceof Number partMin)
+        || !(p.get("max") instanceof Number partMax)
+        || !(t.get("min") instanceof Number totalMin)
+        || !(t.get("max") instanceof Number totalMax)
+        || totalMin.doubleValue() <= 0
+        || totalMax.doubleValue() <= 0) {
+      gaps.add(new GapRecord(shareId, releaseTag, "empty_definition", "分项或分母金额不是正区间"));
+      return;
+    }
+    Map<String, Object> exact = new LinkedHashMap<>();
+    exact.put("min", percent(partMin, totalMax));
+    exact.put("max", percent(partMax, totalMin));
+    Double shareRoundTo =
+        attribute.props().get(SHARE_ROUND_TO_KEY) instanceof Number g ? g.doubleValue() : null;
+    Object value = roundTo(exact, shareRoundTo);
+    String calibration =
+        CALIBRATION_CALIBRATED.equals(attribute.calibration())
+                && CALIBRATION_CALIBRATED.equals(totalAsset.calibration())
+            ? CALIBRATION_CALIBRATED
+            : "draft";
+    Object shareName = attribute.props().get(SHARE_NAME_KEY);
+    anchors.add(
+        new ReportAnchor(
+            shareId,
+            shareName == null ? part.name() + "占" + total.name() + "的比例" : shareName.toString(),
+            NUMBER_CLASS_ANALYSIS,
+            SHARE_UNIT,
+            VALUE_KIND_RANGE,
+            value,
+            null,
+            releaseTag,
+            "求值线按「分项金额 ÷ 合计金额」算出（两端各自算：min＝分项 min ÷ 合计 max，max＝分项 max ÷ 合计 min）："
+                + part.name()
+                + " "
+                + text(part.value())
+                + " 元 ÷ "
+                + total.name()
+                + " "
+                + text(total.value())
+                + " 元 ＝ "
+                + text(exact)
+                + "%"
+                + roundingClause(value, shareRoundTo, SHARE_UNIT)
+                + "。两边都是宽区间，占比区间随之宽；不引用任何公开行情里\"大家装修时的占比\"。",
+            calibration,
+            isDegraded(calibration),
+            // 标注层印的出处是两条单价资产各自的外部来源（分子与分母），不是求值线自己的推导句
+            provenancePolicy.decide(
+                attribute.source() + "；合计来源：" + totalAsset.source(),
+                laterOf(attribute.effectiveFrom(), totalAsset.effectiveFrom()),
+                earlierOf(attribute.effectiveTo(), totalAsset.effectiveTo()),
+                calibration,
+                evaluatedOn),
+            presentationPolicy.decide(calibration)));
+  }
+
+  /** 分项 ÷ 合计 × 100，停在 {@link #SHARE_SCALE} 位：2.00 / 6.82（下发前再按声明取整）。 */
+  private static double percent(Number part, Number total) {
+    return BigDecimal.valueOf(part.doubleValue())
+        .multiply(BigDecimal.valueOf(100))
+        .divide(BigDecimal.valueOf(total.doubleValue()), SHARE_SCALE, RoundingMode.HALF_UP)
+        .doubleValue();
+  }
+
+  private static ReportAnchor anchorById(List<ReportAnchor> anchors, String lkpId) {
+    for (ReportAnchor anchor : anchors) {
+      if (anchor.lkpId().equals(lkpId)) {
+        return anchor;
+      }
+    }
+    return null;
+  }
+
+  private static LocalDate laterOf(LocalDate a, LocalDate b) {
+    if (a == null || b == null) {
+      return a == null ? b : a;
+    }
+    return a.isAfter(b) ? a : b;
+  }
+
+  private static LocalDate earlierOf(LocalDate a, LocalDate b) {
+    if (a == null || b == null) {
+      return a == null ? b : a;
+    }
+    return a.isBefore(b) ? a : b;
+  }
+
+  /** {@code attr-price-hydro-labor-sqm} → {@code lkp-share-hydro-labor-sqm}（占比与金额、单价各一条落点）。 */
+  private static String shareIdOf(String assetId) {
+    return assetId.startsWith("attr-price-")
+        ? "lkp-share-" + assetId.substring("attr-price-".length())
+        : assetId + "-share";
+  }
+
   /** {@code attr-price-hydro-labor-sqm} → {@code lkp-cost-hydro-labor-sqm}（金额与单价分属两个落点）。 */
   private static String costIdOf(String assetId) {
     return assetId.startsWith("attr-price-")
@@ -448,6 +725,10 @@ public final class RulebookEvaluator {
       LocalDate evaluatedOn,
       List<ReportAnchor> anchors,
       List<GapRecord> gaps) {
+    if (parameter.retired()) {
+      // 已裁定不再下发（V9 status=retired）：不产落点、也不记 gap-——gap- 是"求不出"，这是"不给"
+      return;
+    }
     String releaseTag = snapshot.releaseTag();
     if (hasValue(parameter.value())) {
       anchors.add(anchor(parameter, releaseTag, parameter.value(), evaluatedOn));

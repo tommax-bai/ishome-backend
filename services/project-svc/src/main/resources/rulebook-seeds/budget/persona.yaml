@@ -31,10 +31,22 @@ judgment_style:
     good: "定制柜按投影面积计价，单价 {lkp-price-custom-cabinet}——做到哪一档，差别就在这个区间里。"
     reason: cr-weak-word
 assertion_budget:
-  - {predicate: 各分项占比, requires: [lkp-budget-share]}
-  - {predicate: 哪一项最吃钱, requires: [lkp-budget-share, lkp-budget-driver]}
-  - {predicate: 三档差在哪, requires: [lkp-budget-tier-gap]}
-  # ★ "总价是多少" 不在断言预算内——本章禁精确总价（规则 5.15）
+  # 占比/三档/大头三个题目改挂求值线派生条目（用户裁决 2026-09-09「占比只由算得」，规则 5.15 第 2 节 v2.13）：
+  # 原 requires 的 lkp-budget-share / lkp-budget-driver / lkp-budget-tier-gap 三条搜来的临时锚已退役。
+  #   · 眼下能算出的钱：单价 × 建筑面积已经算得出的两笔（水电人工、全屋硬装）——现在就有背书；
+  #   · 各分项占比：五个分项的 lkp-share-* 全齐才背书（缺一项就说不全"各分项"）；量还没有的四项
+  #     求值线记 gap-「等平面出来按量算」，故这个题目**现在自然无背书**，平面接通后自然有；
+  #   · 哪一项最吃钱＝金额最大的分项：五个占比齐了才比得出，requires 与上一条同集，现在同样无背书；
+  #   · 三档差在哪：单价资产自带三档 × 量，落点 id 由派生规则从资产 id 得（costIdOf + "-by-grade"）。
+  - {predicate: 眼下能算出的钱, requires: [lkp-cost-hydro-labor-sqm, lkp-cost-hardfit-total-sqm]}
+  - {predicate: 各分项占比, requires: [lkp-share-demolition, lkp-share-electrical-point,
+                                       lkp-share-custom-cabinet, lkp-share-hydro-labor-sqm,
+                                       lkp-share-wall-paint]}
+  - {predicate: 哪一项最吃钱, requires: [lkp-share-demolition, lkp-share-electrical-point,
+                                         lkp-share-custom-cabinet, lkp-share-hydro-labor-sqm,
+                                         lkp-share-wall-paint]}
+  - {predicate: 三档差在哪, requires: [lkp-cost-hardfit-total-sqm-by-grade]}
+  # ★ "总价是多少" 不在断言预算内——本章禁精确总价（规则 5.15）；"眼下能算出的钱"说的是区间不是一个数
   #
   # ★ 单价行情（2026-08-29 新增）：单价库投影为落点后，这五条是造价域**唯一**过可核性门的支点
   # （calibrated → THESIS_SUPPORT），而上面三条谓词 requires 的全是 draft 参数——真跑实测
@@ -43,7 +55,7 @@ assertion_budget:
   #
   # 射程严格限于**这几项工程的单价行情落在什么水平**——一条单价背书得起的就是它自己那一项的价：
   #   · 背书不了总价（量还没有：拆改㎡/点位数/涂刷面积要从定稿平面算，那条线未通）；
-  #   · 背书不了占比与"哪一项最吃钱"（那两个题目的支点仍是 draft 的占比带与驱动项，见上）；
+  #   · 背书不了占比与"哪一项最吃钱"（那两个题目的支点自 2026-09-09 起是派生的 lkp-share-*，见上）；
   #   · **禁跨口径比较**：元/㎡、元/点位、元/投影㎡ 是三种口径，谁比谁贵不在本谓词射程内
   #     （work_item schema 原文"禁跨口径换算"），故不为"哪项单价更高"另立谓词。
   # requires 列全五条而不是逐项拆：题目是"各工项单价行情"，缺一项这个题目本身就不完整；

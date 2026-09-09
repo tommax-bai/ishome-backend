@@ -1,12 +1,26 @@
 domain: lighting
 form: check
 inherit: _common/checks.yaml
+# 本域三条**全部**随 2026-09-09 批量退役下线（第一类·真空档）。全批口径与用户原话见
+# _common/checks.yaml 顶部「2026-09-09 批量退役」；证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——要数"正文里讲了几种色温"
+  # 才判得了它，今天没有任何代码在数，**不是被别处承接了才退的**。先去掉、保持开放，要不要补看后续真跑样本。
   - {id: cr-cct-variety, type: count_max, scope: [art-lighting-chapter], field: 色温种类, max_from: lkp-cct-variety-max,
-     message: "全屋色温种类超过上限", decided_by: "规范规则 5.1"}
+     version: 2, status: retired,
+     message: "全屋色温种类超过上限",
+     decided_by: "规范规则 5.1；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——成文线看不见灯位图，今天没有
+  # 任何代码在查图上有没有安装高度/间距这类定位数字，**不是被别处承接了才退的**。
   - {id: cr-lighting-no-number-on-plan, type: field_deny, scope: [art-ceiling-lighting-plan],
+     version: 2, status: retired,
      require: "灯位图内不得出现安装高度、间距等定位数字，符号旁仅标条目编号（规则 3.3）",
-     message: "prec-schematic 灯位图出现定位数字", decided_by: "规范规则 2.2/3.3"}
+     message: "prec-schematic 灯位图出现定位数字",
+     decided_by: "规范规则 2.2/3.3；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——"三个场景模式给没给回路分组示意、
+  # 有没有混进参数表"今天没有任何代码在判，**不是被别处承接了才退的**。
   - {id: cr-lighting-scene-modes, type: presentation, scope: [art-lighting-chapter],
+     version: 2, status: retired,
      require: "场景模式须给回路分组示意（会客/观影/夜起三模式），不出参数表（规则 5.1）",
-     message: "场景模式缺回路分组或混入参数表", decided_by: "规范规则 5.1"}
+     message: "场景模式缺回路分组或混入参数表",
+     decided_by: "规范规则 5.1；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}

@@ -899,6 +899,188 @@ class RulebookEvaluatorTest {
         Map.of("min", 800, "max", 2000), anchor(pkg, "lkp-price-hardfit-total-sqm").value());
   }
 
+  /** 单价资产夹具（带自己的名字）：占比的推导原文要把分项名与合计名都写出来，两条不能同名。 */
+  private static AttributeAsset workItem(
+      String assetId, String name, Map<String, Object> props, String calibration) {
+    return new AttributeAsset(
+        assetId,
+        name,
+        "work_item",
+        props,
+        LocalDate.of(2026, 9, 8),
+        LocalDate.of(2026, 12, 8),
+        calibration,
+        "土巴兔装修大学 to8to.com/yezhu/z338598.html",
+        1);
+  }
+
+  /** 110 ㎡ 一线的三条真库形态单价：全屋硬装（带三档表）、水电人工（带分母与占比取整）、墙体拆除（没有量）。 */
+  private static ReleaseSnapshot budgetSnapshotForShares() {
+    Map<String, Object> hardfit = new java.util.LinkedHashMap<>();
+    hardfit.put("unit", "㎡");
+    hardfit.put("quantity_basis", "building_area_sqm");
+    hardfit.put("cost_round_to", 100);
+    hardfit.put("price_range", List.of(500, 3000));
+    hardfit.put("breakdown", Map.of("一线", List.of(1000, 3000), "二线", List.of(800, 2000)));
+    hardfit.put(
+        "grade_breakdown",
+        Map.of(
+            "low", List.of(800, 1200), "medium", List.of(1200, 1800), "high", List.of(2000, 3000)));
+    Map<String, Object> hydro = new java.util.LinkedHashMap<>();
+    hydro.put("unit", "㎡");
+    hydro.put("quantity_basis", "building_area_sqm");
+    hydro.put("cost_round_to", 100);
+    hydro.put("price_range", List.of(25, 68));
+    hydro.put("breakdown", Map.of("一线", List.of(60, 68), "三四线", List.of(25, 50)));
+    hydro.put("share_of", "attr-price-hardfit-total-sqm");
+    hydro.put("share_name", "水电改造人工费占全屋硬装花费的比例");
+    hydro.put("share_round_to", 1);
+    Map<String, Object> demolition = new java.util.LinkedHashMap<>();
+    demolition.put("unit", "㎡");
+    demolition.put("price_range", List.of(20, 60));
+    demolition.put("share_of", "attr-price-hardfit-total-sqm");
+    demolition.put("share_name", "墙体拆除费占全屋硬装花费的比例");
+    return budgetSnapshot(
+        workItem("attr-price-hardfit-total-sqm", "硬装全包行情单价", hardfit, "draft"),
+        workItem("attr-price-hydro-labor-sqm", "水电改造人工费", hydro, "calibrated"),
+        workItem("attr-price-demolition", "墙体拆除", demolition, "calibrated"));
+  }
+
+  private static final EvaluationInput ONE_TEN_SQM_FIRST_TIER =
+      new EvaluationInput(1700, 1780, null, null, Map.of(), "一线", 110.0, 80);
+
+  /**
+   * 占比只由算得（用户裁决 2026-09-09）：水电人工 6600–7500 元 ÷ 全屋硬装 110000–330000 元，两端各自算 ＝ 2–6.82%， 取整到 1 % ＝
+   * 2–7%。除的是取整后的金额落点（7480 已到百元成 7500）。可核性取两条资产的交集：合计那条是 draft，占比就是 draft。
+   */
+  @Test
+  void derivesShareOfHardFitTotalFromComputedCosts() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(budgetSnapshotForShares()),
+            ONE_TEN_SQM_FIRST_TIER,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor share = anchor(pkg, "lkp-share-hydro-labor-sqm");
+    assertEquals(Map.of("min", 2L, "max", 7L), share.value());
+    assertEquals("%", share.unit());
+    assertEquals("range", share.valueKind());
+    assertEquals("水电改造人工费占全屋硬装花费的比例", share.name());
+    assertEquals("draft", share.calibration());
+    assertTrue(
+        share
+            .source()
+            .contains("水电改造人工费合计 6600–7500 元 ÷ 硬装全包行情单价合计 110000–330000 元 ＝ 2–6.82%，取整到 1 % ＝ 2–7"),
+        share.source());
+    // 分子分母照旧各是一条金额落点
+    assertEquals(
+        Map.of("min", 6600L, "max", 7500L), anchor(pkg, "lkp-cost-hydro-labor-sqm").value());
+    assertEquals(
+        Map.of("min", 110000L, "max", 330000L), anchor(pkg, "lkp-cost-hardfit-total-sqm").value());
+  }
+
+  /** 三档＝单价资产自带的三档 × 量，不用搜来的倍数：每档一项、项名取 tier 闭集，各自按 cost_round_to 取整。 */
+  @Test
+  void derivesHardFitTotalByGradeFromGradeBreakdown() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(budgetSnapshotForShares()),
+            ONE_TEN_SQM_FIRST_TIER,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    ReportAnchor byGrade = anchor(pkg, "lkp-cost-hardfit-total-sqm-by-grade");
+    assertEquals("tier", byGrade.valueKind());
+    assertEquals("元", byGrade.unit());
+    assertEquals(
+        Map.of(
+            "low", Map.of("min", 88000L, "max", 132000L),
+            "medium", Map.of("min", 132000L, "max", 198000L),
+            "high", Map.of("min", 220000L, "max", 330000L)),
+        byGrade.value());
+    assertEquals(
+        List.of("low", "medium", "high"), List.copyOf(((Map<?, ?>) byGrade.value()).keySet()));
+    assertTrue(byGrade.source().contains("只有档一维、不分城市"), byGrade.source());
+    assertTrue(
+        byGrade
+            .source()
+            .contains(
+                "low 800–1200 / medium 1200–1800 / high 2000–3000 元/㎡ × building_area_sqm 110.0 ＝ low 88000–132000 / medium 132000–198000 / high 220000–330000"),
+        byGrade.source());
+  }
+
+  /** 没有金额的分项不派生占比、不填：记 gap-「等平面出来按量算」（规则 4.18），落点里没有它。 */
+  @Test
+  void shareOfItemWithoutQuantityIsGapNotAnchor() {
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(budgetSnapshotForShares()),
+            ONE_TEN_SQM_FIRST_TIER,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertTrue(pkg.anchors().stream().noneMatch(a -> a.lkpId().equals("lkp-share-demolition")));
+    assertTrue(pkg.anchors().stream().noneMatch(a -> a.lkpId().equals("lkp-cost-demolition")));
+    GapRecord gap = gap(pkg, "lkp-share-demolition");
+    assertEquals("missing_input", gap.reason());
+    assertTrue(gap.detail().startsWith("等平面出来按量算"), gap.detail());
+  }
+
+  /** 退役条目（V9 status=retired）留在快照里作对照，但求值线不产落点、也不记 gap-：它不是求不出，是裁定不给。 */
+  @Test
+  void retiredParameterYieldsNeitherAnchorNorGap() {
+    ParameterAsset retired =
+        new ParameterAsset(
+            "lkp-budget-tier-gap",
+            "三档情景价差带",
+            "analysis",
+            "comparison",
+            Map.of("medium-vs-low", Map.of("min", 1.3, "max", 1.8)),
+            null,
+            null,
+            null,
+            "倍",
+            "draft",
+            "测试源",
+            2,
+            ParameterAsset.STATUS_RETIRED);
+    ParameterAsset retiredFormula =
+        new ParameterAsset(
+            "lkp-budget-driver",
+            "花钱大头分项判定",
+            "analysis",
+            null,
+            null,
+            null,
+            "占比最高且量可变的分项",
+            null,
+            null,
+            "draft",
+            null,
+            2,
+            ParameterAsset.STATUS_RETIRED);
+    ReportDataPackage pkg =
+        evaluator.evaluate(
+            List.of(
+                new ReleaseSnapshot(
+                    "budget",
+                    "budget@v16",
+                    List.of(retired, retiredFormula),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    Map.of())),
+            ONE_TEN_SQM_FIRST_TIER,
+            ArtifactEntitlement.PAID,
+            EVALUATED_ON);
+
+    assertTrue(pkg.anchors().isEmpty(), pkg.anchors().toString());
+    assertTrue(pkg.gaps().isEmpty(), pkg.gaps().toString());
+  }
+
   @Test
   void staleUnitPriceStillDeliversMoneyWithAcquisitionDate() {
     ReportDataPackage pkg =

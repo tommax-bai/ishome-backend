@@ -9,6 +9,46 @@
 scope: cross-domain
 form: check
 
+# ── 2026-09-09 批量退役：17 条（本批说明只写这一处，各域 checks.yaml 的 decided_by 指回这里）──
+#
+# 起因：《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D 清点出——报告线 31 条 cr- 判据里
+# **21 条标着 active 却没有任何执行路径**：规则层只挑带 `pattern` 的（gate.py:991），判官层只挑带
+# `examples` 的（judge.py:102-104），这 21 条两样都没有，永远轮不到执行。用户 review 后按两类处置，
+# 本批退掉其中 17 条。另 4 条"部分承接"的（cr-softdeco-mode-split / cr-material-aging-downgrade /
+# cr-storage-baseline-draft / cr-ergo-size-source）**用户尚未表态，本批一条不动**。
+#
+# 【第一类 · 14 条真空档】它管的事**今天没有任何别的东西在管**。
+#   用户原话："报告册没人管的14条全部去掉。先不加这些限制了，我觉得没必要。后面的话我们看报告侧再再说。"
+#   口径当场由用户收紧："不是明确不做了，是先把它去掉。然后呢，以后如果需要的时候我们再补，不需要
+#   就不管它了"、"我们后续要看实际例子的情况，再来判断是不是需要这个意思。"
+#   所以这批是**先去掉、保持开放**，不是"判定这条限制不需要"的终局裁决。要不要补回来的判据写死在
+#   真跑样本上：真报告里出现了这类问题再议，没出现就不管——与《纪律·只收真跑样本》《纪律·阈值有
+#   数据才定》同向（今天既没有样本也没有阈值，现在加限制就是凭空立规矩）。
+#   **"没有替代品"这一句每条都要写明**：本批与下面第二类在数据里长得一模一样（都是 status: retired
+#   的死行），日后翻到这批的人若默认"它们是被别处兜住了才退的"，就又造出一个"以为有门、其实没门"
+#   ——那正是本次清点要消掉的那种错觉。退役后这件事就是没门，照实说。
+#   本批 14 条落处：
+#     _common/    cr-no-position-number-on-schematic
+#     lighting/   cr-cct-variety · cr-lighting-no-number-on-plan · cr-lighting-scene-modes
+#     material/   cr-material-variety · cr-material-spec-word
+#     softdeco/   cr-softdeco-main-color-count · cr-softdeco-color-collect-visual · cr-softdeco-render-color-match
+#     budget/     cr-budget-range-width · cr-budget-no-commerce
+#     ergonomics/ cr-ergo-passage-pass · cr-ergo-size-table-expanded
+#     storage/    cr-storage-verdict-first
+#
+# 【第二类 · 3 条完整承接】数据行是死的，但它管的事已由代码里另一个名字在管。退役理由是**同一件事
+#   不两处声明**——留着早晚两边说的不一样（同 cr-bound-word-before-placeholder 那条的"两半分居必
+#   改一处忘一处"）。承接者逐条写进各自 decided_by：
+#     cr-assertion-backed   → gate-assertion-not-budgeted + gate-assertion-unbacked（gate.py:1094-1125）
+#     cr-budget-stale-price → gate-provenance-annotation-missing（activities.py:432-445）
+#     cr-budget-disclaimer  → gate-locked-text-missing（activities.py:415-427）
+#
+# 处置形态照既有三条 retired（cr-unit-translation / cr-bound-word-before-placeholder /
+# cr-draft-not-in-paid）：**不删行、升 version、写 status: retired**，老版本行留档，回滚＝切回旧
+# release_tag。本批 17 条全部无 pattern 也无 examples，故没有"摘 pattern"这一步（规则层不看 status，
+# 带 pattern 的 retired 行会继续拦——本批不存在这个问题；判官层 judge.py 认 status，本批也够不着）。
+# ────────────────────────────────────────────────────────────────────────────────────
+
 items:
   - id: cr-weak-word
     type: regex_deny
@@ -63,30 +103,46 @@ items:
     message: "占位符前禁边界词——单边界值的措辞（不低于/不超过）由渲染层按值形态出，文句再带一遍即叠字（真跑立案：「不少于不低于 750 mm」一册 7 处）"
     decided_by: "用户裁决 2026-08-29 晚（单边界措辞归渲染层：边界语义在值里，只说一次）；2026-08-30 换载体退役，语义由 reportgen gate-bound-word-before-ref / gate-unit-after-ref 承接"
 
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——成文线看不见图纸，今天没有
+  # 任何代码在判"标着示意的图纸上有没有定位数字"，**不是被别处承接了才退的**。先去掉、保持开放，
+  # 要不要补看后续真报告跑出来的样本。全批口径见本文件顶部「2026-09-09 批量退役」。
   - id: cr-no-position-number-on-schematic
     type: field_deny
     scope: [prec-schematic]
+    version: 2
+    status: retired
     require: "prec-schematic 图纸内不得出现任何定位数字"
     message: "prec-schematic 禁定位数字（规则 2.2）"
-    decided_by: "规范规则 2.2"
+    decided_by: "规范规则 2.2；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见本文件顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"
 
   # version 1 → 2（裁决 2026-08-29）：require 补"且为 calibrated"。这半句原先住在
   # cr-draft-not-in-paid 里，那条随隐藏档作废后 retire，它**仍然有效的那一半语义**（未过可核性门的
   # 落点撑不起判断句背书，规则 5.8 未被 v2.4 推翻）由本条承接——纪律不能随着一条判据下线而消失。
   # 执行器早已是这个口径（reportgen gate 校验 requires 的 lkp- 存在且非降档），本次是数据追上执行。
+  #
+  # retired（用户裁决 2026-09-09，version 2 → 3）：**第二类·完整承接**——上一段那句"执行器早已是
+  # 这个口径"就是它退役的理由：这条数据行本身没有执行路径（无 pattern、无 examples），它写的判据
+  # 逐字由代码里的 gate-assertion-not-budgeted（谓词在不在本域断言预算内）+ gate-assertion-unbacked
+  # （requires 的 lkp- 存不存在、降没降档）执行。同一件事两处声明，早晚两边说的不一样，故留代码那侧。
+  # **cr-draft-not-in-paid 的退役注释里"语义由 cr-assertion-backed v2 承接"这句随之改指**：
+  # 那份语义今天的执行者是 gate-assertion-*，不是这条数据行。
   - id: cr-assertion-backed
     type: cross_field
     scope: [正文]
-    version: 2
+    version: 3
+    status: retired
     require: "判断句谓词须在该域 persona.assertion_budget 内，且其 requires 的 lkp-* 已求值、且为 calibrated（过可核性门——未过门的落点照常进正文，但撑不起判断句背书）"
     message: "无计算背书的判断句（规则 5.8）"
-    decided_by: "规范规则 5.8 + 规则 4.10a；v2.4 裁决 2026-08-29（承接 cr-draft-not-in-paid 退役后仍有效的语义）"
+    decided_by: "规范规则 5.8 + 规则 4.10a；v2.4 裁决 2026-08-29（承接 cr-draft-not-in-paid 退役后仍有效的语义）；用户裁决 2026-09-09 退役（第二类完整承接：判据由 reportgen gate-assertion-not-budgeted + gate-assertion-unbacked 逐字执行，同一件事不两处声明。批次说明见本文件顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"
 
   # retired（裁决 2026-08-29，version 1 → 2）：**判据的名字就是被推翻的那条口径**——v2.4 取消了
   # "draft 禁入 PAID"，未校准资产照常进产物、随标注呈现。处置选 retire 而不是改 message：
   # 改了 message 名字就在说假话（"not-in-paid"），而判据名与语义必须一致；retire 不删行，
   # release 可回滚（切回旧 release_tag），审计看得见它曾经存在过。
   # 剩余有效语义（未过门落点不得作判断句背书）已由 cr-assertion-backed v2 承接，不留空档。
+  # **2026-09-09 改指**：cr-assertion-backed 本身随本次批量退役下线（它同样没有执行路径），
+  # 这份语义今天的执行者是代码侧的 gate-assertion-not-budgeted + gate-assertion-unbacked。
+  # 承接链没有断，断的只是中间那一跳的数据行——照实记，免得日后顺着旧指向找到一条死行。
   - id: cr-draft-not-in-paid
     type: cross_field
     scope: [PAID 产物]

@@ -64,7 +64,7 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
    * reference_plane} 接住原先挤在 value 里的参考平面。
    *
    * <p>{@code round_to}（V8 起）是公式点值的取整粒度声明；V8 之前的快照没有这一列，读出来是 {@code null}——按"不声明即不取整"
-   * 原样求值，与它们发布时的行为一致。
+   * 原样求值，与它们发布时的行为一致。{@code status}（V9 起，active|retired）同理：老快照缺列读作 active。
    */
   private List<ParameterAsset> parameters(JsonNode assets) {
     List<ParameterAsset> parameters = new ArrayList<>();
@@ -82,7 +82,8 @@ public class ReleaseRepositoryImpl implements ReleaseRepository {
               node.path("unit").asText(null),
               node.path("calibration").asText("draft"),
               node.path("source").asText(null),
-              node.path("version").asInt(1)));
+              node.path("version").asInt(1),
+              node.path("status").asText(ParameterAsset.STATUS_ACTIVE)));
     }
     return parameters;
   }

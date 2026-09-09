@@ -1,12 +1,30 @@
 domain: softdeco
 form: check
 inherit: _common/checks.yaml
+# 本域四条里三条随 2026-09-09 批量退役下线（第一类·真空档）；cr-softdeco-mode-split 属"部分承接"，
+# 用户尚未表态，**本批不动**。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
+# 证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——今天没有任何代码在管"色彩偏好
+  # 是怎么问出来的"，**不是被别处承接了才退的**；而且它的 scope 写的是"需求采集"，那一段根本不在成文线
+  # 的射程里，判据从落位起就没有执行者。先去掉、保持开放，要不要补看后续真跑样本。
   - {id: cr-softdeco-color-collect-visual, type: cross_field, scope: [需求采集],
-     require: "色彩偏好必须经 H5 视觉网格采集，禁止文字问色彩（规则 5.14/6.4）", message: "文字问色彩", decided_by: "规范规则 5.14/6.4"}
+     version: 2, status: retired,
+     require: "色彩偏好必须经 H5 视觉网格采集，禁止文字问色彩（规则 5.14/6.4）", message: "文字问色彩",
+     decided_by: "规范规则 5.14/6.4；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——这条要跨报告线与出图线两个产物
+  # 取色比对，今天两条线之间没有这样的比对点，**不是被别处承接了才退的**。
   - {id: cr-softdeco-render-color-match, type: cross_field, scope: [art-color-soft-chapter, art-space-render],
-     require: "章内色彩方案与效果图取色一致", message: "色彩方案与效果图不一致", decided_by: "规范规则 5.14"}
+     version: 2, status: retired,
+     require: "章内色彩方案与效果图取色一致", message: "色彩方案与效果图不一致",
+     decided_by: "规范规则 5.14；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——要数"软装章列了几个主色"才判得了
+  # 它，今天没有任何代码在数，**不是被别处承接了才退的**。
   - {id: cr-softdeco-main-color-count, type: count_max, scope: [art-color-soft-chapter], field: 主色数量, max_from: lkp-color-main-max,
-     message: "全屋主色数量超上限", decided_by: "规范规则 5.14"}
+     version: 2, status: retired,
+     message: "全屋主色数量超上限",
+     decided_by: "规范规则 5.14；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
+  # 不在 2026-09-09 批量退役射程内：属"部分承接"四条之一（gate-digit-outside-ref 拦得住"写手编数字"
+  # 那一半，"该生成的被写成清单"那一半没人管），用户尚未表态。
   - {id: cr-softdeco-mode-split, type: cross_field, scope: [art-color-soft-chapter],
      require: "情绪叙事=gen-generated，数据与清单=gen-evaluated/gen-assembled，组合矩阵不破（规则 2.5）", message: "生成方式越档", decided_by: "规范规则 2.5"}

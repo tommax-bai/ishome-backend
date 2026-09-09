@@ -50,6 +50,13 @@ def case(name: str, item_yaml: str, needle: str, *, expect_error: bool):
     print(f"  {'ok  ' if hit == expect_error else 'FAIL'} {name}")
 
 
+# ⓪ 参数入册状态：只有 active/retired 两值（V9；用户裁决 2026-09-09 三条占比临时锚退役留档）
+case("status 越界即拒", item(value_kind="range", value="{min: 1, max: 2}", status="observing"),
+     "status 非法", expect_error=True)
+case("status: retired 即放行（原值留档）",
+     item(value_kind="range", value="{min: 1, max: 2}", status="retired"),
+     "status 非法", expect_error=False)
+
 # ① value_kind 必须在七值闭集内
 case("value_kind 越界即拒", item(value_kind="interval", value="{min: 1, max: 2}"),
      "value_kind 非法", expect_error=True)
