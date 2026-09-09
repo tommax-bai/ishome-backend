@@ -46,6 +46,12 @@ items:
      value: {medium-vs-low: {min: 1.3, max: 1.8}, high-vs-medium: {min: 1.4, max: 2.2}}, unit: 倍,
      source: "首个外部粗锚（run-2026-08-27）：公开行情整装档位 简装 1000-1500 / 精装 2000-2500 / 豪装 3000+ 元/㎡（土巴兔 z349188 等）→ 精/简 ≈1.7-2.0、豪/精 ≥1.2，与本区间部分重叠",
      source_pending: "由 attr-price-* 三档用材差算出精确带，不写死"}
+  # 退役（用户裁决 2026-09-09，version 1 → 2）：**内部映射不下发**——它回答的是"我们内部按置信把区间放多宽"，
+  # 不是业主要看的数；真跑册却把它印给了业主（「我们建议用 0.5 ±比例* 表示高确定性档位」），而求值线代码里没有
+  # 任何消费（grep 无引用），单位「±比例」v2.10 起就列为待裁的数据形态。原值留档；**求值线要用时以内部参数形态
+  # 回来（求值输入侧的常量/配置），不再作落点**。attributes 的 confidence 字段与 cr-budget-range-width（已退役）
+  # 提到它的地方只是叙述，不是引用。
   - {id: lkp-budget-confidence-width, name: 置信到区间宽度的映射, number_class: analysis, value_kind: tier,
+     version: 2, status: retired,
      value: {high: 0.15, medium: 0.30, low: 0.50}, unit: "±比例",
      note: "低置信=更宽区间（规则 5.15 用户裁决：区间宽度随 source 置信调整）"}
