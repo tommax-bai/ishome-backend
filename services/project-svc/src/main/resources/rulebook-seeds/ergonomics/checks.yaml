@@ -1,8 +1,8 @@
 domain: ergonomics
 form: check
 inherit: _common/checks.yaml
-# 本域三条里两条随 2026-09-09 批量退役下线（第一类·真空档）；cr-ergo-size-source 属"部分承接"，
-# 用户尚未表态，**本批不动**。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
+# 本域三条 2026-09-09 全部退役下线：两条属第一类·真空档，cr-ergo-size-source 属第三类·部分承接
+# （同日第二次拍板）。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
 # 证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
   # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——今天没有任何代码在做这 12 项
@@ -20,7 +20,14 @@ items:
      require: "定制尺寸表恒展开，不得折叠——它是表达件不是校核结论（规则 5.4）",
      message: "定制尺寸表被折叠",
      decided_by: "规范规则 5.4；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
-  # 不在 2026-09-09 批量退役射程内：属"部分承接"四条之一（verify_seeds 只把空 source 记成警告、
-  # 发版拦不住，成文线这一层没有对应检查），用户尚未表态。
+  # retired（用户裁决 2026-09-09 第二次拍板，version 1 → 2）：**第三类·部分承接，不是被完整承接**。
+  # 有人管的那一半＝种子核验时空 source 会被记一条警告（verify_seeds.py:485 走 warns）。
+  # **但那一半也只到"记一条"为止**：脚本结尾 sys.exit(1 if errors else 0) 只看 errors，警告不是硬违规，
+  # **发版拦不住**。没人管的那一半＝成文线这一层根本没有对应检查——报告里印出"洗手台高 800"而这项
+  # 的 source 是空的，业主问"凭什么是 800"答不上来，今天没有任何执行者会拦。
+  # 退役后这两半都没门（前一半只剩一条不拦的警告），别当它被别处覆盖了。
+  # 要不要补看后续真跑样本（用户："等 case 出现的时候再说吧，不要去做过多假设了吧。"）。
   - {id: cr-ergo-size-source, type: cross_field, scope: [art-ergonomics-chapter],
-     require: "每项定制尺寸须带 source（parameter 形态）", message: "定制尺寸缺 source", decided_by: "规范规则 5.4/4.10"}
+     version: 2, status: retired,
+     require: "每项定制尺寸须带 source（parameter 形态）", message: "定制尺寸缺 source",
+     decided_by: "规范规则 5.4/4.10；用户裁决 2026-09-09 退役（第三类部分承接：verify_seeds 只把空 source 记成不拦发版的警告，成文线这一层无对应检查，非完整承接；要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部第三类，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}

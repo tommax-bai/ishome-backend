@@ -1,8 +1,8 @@
 domain: softdeco
 form: check
 inherit: _common/checks.yaml
-# 本域四条里三条随 2026-09-09 批量退役下线（第一类·真空档）；cr-softdeco-mode-split 属"部分承接"，
-# 用户尚未表态，**本批不动**。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
+# 本域四条 2026-09-09 全部退役下线：三条属第一类·真空档，cr-softdeco-mode-split 属第三类·部分承接
+# （同日第二次拍板）。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
 # 证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
   # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——今天没有任何代码在管"色彩偏好
@@ -24,7 +24,13 @@ items:
      version: 2, status: retired,
      message: "全屋主色数量超上限",
      decided_by: "规范规则 5.14；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
-  # 不在 2026-09-09 批量退役射程内：属"部分承接"四条之一（gate-digit-outside-ref 拦得住"写手编数字"
-  # 那一半，"该生成的被写成清单"那一半没人管），用户尚未表态。
+  # retired（用户裁决 2026-09-09 第二次拍板，version 1 → 2）：**第三类·部分承接，不是被完整承接**。
+  # 有人管的那一半＝"写手自己编了一组配色比例数字"，撞 gate-digit-outside-ref（gate.py:1207-1215，
+  # 正文剔掉 {lkp-*} 占位符后还出现裸数字即拦）。**没人管的那一半＝"该生成的被写成清单"**——
+  # 情绪叙事本该 gen-generated、却被写成一张 gen-assembled 的清单，这种越档不含裸数字，
+  # 上面那道门够不着，今天没有第二个执行者。退役后这一半就是没门，别当它被别处覆盖了。
+  # 要不要补看后续真跑样本（用户："等 case 出现的时候再说吧，不要去做过多假设了吧。"）。
   - {id: cr-softdeco-mode-split, type: cross_field, scope: [art-color-soft-chapter],
-     require: "情绪叙事=gen-generated，数据与清单=gen-evaluated/gen-assembled，组合矩阵不破（规则 2.5）", message: "生成方式越档", decided_by: "规范规则 2.5"}
+     version: 2, status: retired,
+     require: "情绪叙事=gen-generated，数据与清单=gen-evaluated/gen-assembled，组合矩阵不破（规则 2.5）", message: "生成方式越档",
+     decided_by: "规范规则 2.5；用户裁决 2026-09-09 退役（第三类部分承接：编数字那一半由 gate-digit-outside-ref 拦，该生成的被写成清单那一半无人管，非完整承接；要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部第三类，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}

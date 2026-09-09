@@ -1,8 +1,8 @@
 domain: storage
 form: check
 inherit: _common/checks.yaml
-# 本域两条里一条随 2026-09-09 批量退役下线（第一类·真空档）；cr-storage-baseline-draft 属"部分承接"，
-# 用户尚未表态，**本批不动**。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
+# 本域两条 2026-09-09 全部退役下线：一条属第一类·真空档，cr-storage-baseline-draft 属第三类·
+# 部分承接（同日第二次拍板）。全批口径与用户原话见 _common/checks.yaml 顶部「2026-09-09 批量退役」；
 # 证据＝《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D。
 items:
   # retired（用户裁决 2026-09-09，version 1 → 2）：**第一类·真空档**——"容量账先给判断还是先列明细"
@@ -11,7 +11,14 @@ items:
      version: 2, status: retired,
      require: "容量账须先给'够/不够'判断句，再列明细（规则 5.13）", message: "收纳容量账未先给判断",
      decided_by: "规范规则 5.13；用户裁决 2026-09-09 退役（第一类真空档：今天没有任何替代品在管，非别处承接；先去掉、要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}
-  # 不在 2026-09-09 批量退役射程内：属"部分承接"四条之一（只有被写进断言预算 requires 时才顺带被
-  # gate-assertion-unbacked 拦住），用户尚未表态。
+  # retired（用户裁决 2026-09-09 第二次拍板，version 1 → 2）：**第三类·部分承接，不是被完整承接**。
+  # 分界同 material/cr-material-aging-downgrade：有人管的那一半＝lkp-storage-density-baseline 被写进
+  # 某句的断言预算 requires 时，gate-assertion-unbacked（gate.py:1189-1206）会因它是 draft、背书不足
+  # 而顺带打回。**没人管的那一半＝不声明 assertions、直接拿这个未校准基准下一句绝对判断**
+  # （"你家收纳缺口是 X 立方米"），没进预算就没有 requires 可查，今天没有第二个执行者。
+  # 退役后这一半就是没门，别当它被别处覆盖了。
+  # 要不要补看后续真跑样本（用户："等 case 出现的时候再说吧，不要去做过多假设了吧。"）。
   - {id: cr-storage-baseline-draft, type: cross_field, scope: [art-storage-chapter],
-     require: "lkp-storage-density-baseline 为 draft，结论须降档为区间表述，禁绝对判断", message: "以未校准基准下绝对判断", decided_by: "规范规则 4.10a"}
+     version: 2, status: retired,
+     require: "lkp-storage-density-baseline 为 draft，结论须降档为区间表述，禁绝对判断", message: "以未校准基准下绝对判断",
+     decided_by: "规范规则 4.10a；用户裁决 2026-09-09 退役（第三类部分承接：进了断言预算 requires 才被 gate-assertion-unbacked 顺带拦，不声明 assertions 直接下绝对判断那一半无人管，非完整承接；要不要补看后续真跑样本。批次说明见 _common/checks.yaml 顶部第三类，证据见《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D）"}

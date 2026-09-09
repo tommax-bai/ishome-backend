@@ -9,13 +9,14 @@
 scope: cross-domain
 form: check
 
-# ── 2026-09-09 批量退役：17 条（本批说明只写这一处，各域 checks.yaml 的 decided_by 指回这里）──
+# ── 2026-09-09 批量退役：21 条 = 17 + 4（同日两次拍板，说明只写这一处，各域 checks.yaml 的
+#    decided_by 指回这里）──
 #
 # 起因：《评审/检测规则清单-哪些真在跑-2026-09-09.md》二·D 清点出——报告线 31 条 cr- 判据里
 # **21 条标着 active 却没有任何执行路径**：规则层只挑带 `pattern` 的（gate.py:991），判官层只挑带
-# `examples` 的（judge.py:102-104），这 21 条两样都没有，永远轮不到执行。用户 review 后按两类处置，
-# 本批退掉其中 17 条。另 4 条"部分承接"的（cr-softdeco-mode-split / cr-material-aging-downgrade /
-# cr-storage-baseline-draft / cr-ergo-size-source）**用户尚未表态，本批一条不动**。
+# `examples` 的（judge.py:102-104），这 21 条两样都没有，永远轮不到执行。用户 review 后按承接程度
+# 分三类：第一次拍板退掉第一、二类共 17 条，第三类 4 条"部分承接"当时留着未表态；**同日第二次拍板
+# 把这 4 条也退掉**（见下面【第三类】），至此 21 条全部退役，这批纸上判据清零。
 #
 # 【第一类 · 14 条真空档】它管的事**今天没有任何别的东西在管**。
 #   用户原话："报告册没人管的14条全部去掉。先不加这些限制了，我觉得没必要。后面的话我们看报告侧再再说。"
@@ -43,10 +44,30 @@ form: check
 #     cr-budget-stale-price → gate-provenance-annotation-missing（activities.py:432-445）
 #     cr-budget-disclaimer  → gate-locked-text-missing（activities.py:415-427）
 #
+# 【第三类 · 4 条部分承接】**同日第二次拍板退役**（version 1 → 2）。
+#   用户原话："我觉得这些东西等 case 出现的时候再说吧，不要去做过多假设了吧。"
+#   问的就是这 4 条怎么办。执行者当时为它们各编了一个假想场景来说明"漏了会怎样"，**用户否掉的正是
+#   这种做法**：拿想出来的例子推动决定，和拿想出来的样例填判官反例是同一个错（规范 v2.3 §12 明令
+#   样例只收真跑样本）。所以这 4 条的去留判据同样写死在真跑样本上：**真报告里出现了这类问题再议，
+#   没出现就不管**——《纪律·只收真跑样本》《纪律·阈值有数据才定》。
+#   **这一类与上面两类都不一样，理由不许套用**：第一类是"没有任何替代品"，第二类是"已被完整承接"，
+#   **这 4 条是各自只有一半有人管、另一半没人管**。退役后没人管的那一半就是真的没人管，照实说；
+#   谁也不许翻到这批 retired 就当它被别处覆盖了。逐条的"哪一半有人管、哪一半没人管"写在各域
+#   checks.yaml 该条的注释与 decided_by 里，四条摘要：
+#     softdeco/   cr-softdeco-mode-split      有人管＝写手编数字（gate-digit-outside-ref，gate.py:1207-1215）
+#                                             没人管＝该生成的被写成清单（组合矩阵越档本身）
+#     material/   cr-material-aging-downgrade 有人管＝被写进断言预算 requires 时顺带拦
+#                                             （gate-assertion-unbacked，gate.py:1189-1206）
+#                                             没人管＝不声明 assertions 直接写成断言句
+#     storage/    cr-storage-baseline-draft   同上（有人管/没人管的分界与 aging-downgrade 一致）
+#     ergonomics/ cr-ergo-size-source         有人管＝种子核验时空 source 记一条**警告**
+#                                             （verify_seeds.py:485 走 warns，脚本 sys.exit 只看 errors，
+#                                             所以发版拦不住）；没人管＝成文线这一层没有对应检查
+#
 # 处置形态照既有三条 retired（cr-unit-translation / cr-bound-word-before-placeholder /
 # cr-draft-not-in-paid）：**不删行、升 version、写 status: retired**，老版本行留档，回滚＝切回旧
-# release_tag。本批 17 条全部无 pattern 也无 examples，故没有"摘 pattern"这一步（规则层不看 status，
-# 带 pattern 的 retired 行会继续拦——本批不存在这个问题；判官层 judge.py 认 status，本批也够不着）。
+# release_tag。这 21 条全部无 pattern 也无 examples，故没有"摘 pattern"这一步（规则层不看 status，
+# 带 pattern 的 retired 行会继续拦——这批不存在这个问题；判官层 judge.py 认 status，这批也够不着）。
 # ────────────────────────────────────────────────────────────────────────────────────
 
 items:
